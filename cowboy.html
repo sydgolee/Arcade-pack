@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>High Noon Rider</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="arcade.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0a12">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
+</head>
+<body>
+<script>
+window.THEME={
+ key:'cowboy_best',title:'HIGH NOON<br>RIDER',playLabel:'RIDE OUT',deadTitle:'BITE THE DUST',
+ intro:'Walk east through endless frontier towns and open prairie. Between towns you ride your horse. Step through the swinging doors of a saloon to save your progress. From high noon to starry night, the outlaws get meaner the further you go.',
+ accent:'#ffa300',pageBg:'radial-gradient(ellipse at 50% 30%,#3a1f1a 0,#0b0a12 70%)',titleShadow:'#7e2553',
+ weapon:{mag:6,reload:30,delay:13},overheat:'',
+ items:{rapid:'RIFLE',spread:'SCATTERGUN'},
+ names:{gunShot:"AN OUTLAW'S BULLET",sniperShot:'A WINDOW SNIPER',mountShot:'A BANDIT RIDER',mount:'A BANDIT HORSE',bomb:'DYNAMITE',boss:'BLACK BART'},
+ killWord:'outlaws',bossName:'BOSS: BLACK BART',bossDown:'BART IS DOWN!',bossAt:[800],bossBase:12,bossGap:1200,callMount:'RIDERS INCOMING!',mountWarn:'RIDER AHEAD!',
+ zones:['DUSTY GULCH',"DEAD MAN'S RIDGE",'SILVER CREEK','TOMBSTONE','RATTLESNAKE PASS','GHOST TOWN',"DEVIL'S CANYON"],
+ skies:[{name:'HIGH NOON',top:'#29adff',bot:'#ffccaa',dark:0,sun:'noon'},{name:'SUNSET',top:'#ff77a8',bot:'#ffa300',dark:.08,sun:'set'},
+        {name:'NIGHTFALL',top:'#0b0a12',bot:'#1d2b53',dark:.42,sun:'moon'},{name:'DAWN',top:'#83769c',bot:'#ffccaa',dark:.12,sun:'rise'}],
+ playerSprites:{
+  w1:["...HHHH...","H..HHHH..H","HHHHRRHHHH","...SSSS...","...SXSX...","...SSSS...","...WWWW...","..BBBBBGGG","..SBBBBB..","...BBBB...","...LLLL...","...L..L...","..KK..KK.."],
+  w2:["...HHHH...","H..HHHH..H","HHHHRRHHHH","...SSSS...","...SXSX...","...SSSS...","...WWWW...","..BBBBBGGG","..SBBBBB..","...BBBB...","...LLLL...","..L....L..",".KK....KK."],
+  jp:["...HHHH...","H..HHHH..H","HHHHRRHHHH","...SSSS...","...SXSX...","...SSSS...","...WWWW...","..BBBBBGGG","..SBBBBB..","...BBBB...","...LLLL...","..LL..LL..",".........."],
+  cr:["...HHHH...","H..HHHH..H","HHHHRRHHHH","...SSSS...","...SXSX...","...SSSS...","..BWWWBGGG","..SBBBB...","..LLLLLL..",".KK....KK."]},
+ playerMap:{H:'4',S:'f',X:'0',W:'8',B:'c',G:'6',L:'1',K:'4',R:'0'},
+ enemyMap:{H:'0',S:'f',X:'0',B:'5',R:'8',G:'6',L:'0',K:'0'},
+ bossMap:{H:'0',S:'f',X:'8',B:'2',R:'a',G:'6',L:'0',K:'0'},
+ mount:[["......HHHH......",".....HHHHHH.....","......SSSS......","......BBRBGGG...","......BBBB...MM.",".N...NNNNNNNNNNM","NN..NNNNNNNNNNNN",".NNNNNNNNNNNN...","..NNNNNNNNNN....","..N..N...N..N...","..N..N...N..N...",".KK..K...K..KK.."],
+        ["......HHHH......",".....HHHHHH.....","......SSSS......","......BBRBGGG...","......BBBB...MM.",".N...NNNNNNNNNNM","NN..NNNNNNNNNNNN",".NNNNNNNNNNNN...","..NNNNNNNNNN....","...N.N...N.N....","..N...N.N...N...",".K....K.K....K.."]],
+ mountMap:{H:'0',S:'f',B:'5',R:'8',G:'6',N:'4',M:'0',K:'0'},
+ ride:true,rideOn:'SADDLE UP!',rideOff:'BACK ON FOOT',rideJump:-3.4,rideGunH:9,rideSmash:false,rideRect:[16,12],
+ rideMap:{H:'4',S:'f',B:'c',R:'8',G:'6',N:'9',M:'4',K:'4'},
+ openDecor:['cactus','cactus','rock','fence','wheel','skull','post','cactus'],openProp:'rock',
+ blood:'#ab5236',eBullet:'#ff004d',bombColor:'#ff004d',shotTone:2600,shotPitch:160,
+ music:{bpm:116,roots:[40,40,43,38],bossRoots:[40,41,40,39],bass:[0,-1,7,-1,0,-1,7,-1,0,-1,7,-1,12,-1,7,-1],
+  lead:[7,-1,10,-1,12,-1,10,7,-1,-1,5,-1,7,-1,-1,-1,7,-1,10,-1,12,-1,15,12,-1,-1,10,-1,7,-1,-1,-1]},
+ drawSky(g,W,H,t,cam,sky){const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,sky.top);gr.addColorStop(1,sky.bot);g.fillStyle=gr;g.fillRect(0,0,W,H);
+  if(sky.sun==='moon'){g.fillStyle='#fff1e8';for(let i=0;i<46;i++){const x=(i*53+7)%W,y=(i*29)%74;if((i+(t>>5))%9)g.fillRect(x,y,1,1)}g.beginPath();g.arc(140,22,7,0,7);g.fill();g.fillStyle=sky.top;g.beginPath();g.arc(143,20,6,0,7);g.fill()}
+  else{const sy={noon:16,set:64,rise:60}[sky.sun];g.fillStyle=sky.sun==='noon'?'#fff1e8':'#ffec27';g.beginPath();g.arc(sky.sun==='rise'?34:132,sy,sky.sun==='noon'?8:13,0,7);g.fill()}
+  const far=MIX(sky.bot,'#7e2553',.45),mid=MIX(sky.bot,'#5a2a18',.6),near=MIX(sky.bot,'#2a1810',.78);
+  g.fillStyle=far;const o1=-(cam*.08)%240;for(let k=-1;k<3;k++){const x=o1+k*240;g.beginPath();g.moveTo(x,98);g.lineTo(x+14,64);g.lineTo(x+70,62);g.lineTo(x+84,98);g.fill();g.fillRect(x+120,74,60,24);g.fillRect(x+130,66,34,10);g.beginPath();g.moveTo(x+188,98);g.lineTo(x+204,80);g.lineTo(x+228,98);g.fill()}
+  g.fillStyle=mid;const o2=-(cam*.2)%150;for(let k=-1;k<3;k++){const x=o2+k*150;g.fillRect(x+10,88,40,12);g.fillRect(x+16,82,24,8);
+   g.fillRect(x+80,74,4,26);g.fillRect(x+74,80,3,8);g.fillRect(x+74,86,6,2);g.fillRect(x+87,78,3,8);g.fillRect(x+84,84,6,2);g.fillRect(x+120,84,3,16);g.fillRect(x+117,88,3,2)}
+  g.fillStyle=near;const o3=-(cam*.35)%210;for(let k=-1;k<3;k++){const x=o3+k*210;g.fillRect(x+30,72,2,30);g.fillRect(x+26,100,10,2);for(let i=0;i<4;i++){const aa=t*.05+i*1.57;g.fillRect(x+31+Math.cos(aa)*6-1|0,72+Math.sin(aa)*6-1|0,2,2)}g.fillRect(x+31,71,6,2);
+   g.fillRect(x+150,80,14,4);g.fillRect(x+152,84,2,18);g.fillRect(x+161,84,2,18);
+   for(let i=0;i<3;i++){const px=x+70+i*48;g.fillRect(px,80,1,22);g.fillRect(px-3,81,7,1)}g.fillRect(x+70,83,144,1)}},
+ drawBuilding(g,b,GY,t,sky){const top=b.top;
+  if(b.save){g.fillStyle='#7a3b22';g.fillRect(b.x,top,b.w,GY-top);g.fillStyle='#5a2a18';for(let x=b.x;x<b.x+b.w;x+=4)g.fillRect(x,top,1,GY-top);
+   g.fillStyle='#93502e';g.fillRect(b.x-3,top-4,b.w+6,5);g.fillStyle='#3a1f1a';g.fillRect(b.x+10,top+3,b.w-20,11);const s='SALOON';PXT(g,s,b.x+b.w/2-PXT.w(s)/2,top+6,'#ffec27');
+   g.fillStyle='#5a2a18';g.fillRect(b.x-2,GY-26,b.w+4,3);for(let x=b.x;x<=b.x+b.w;x+=24)g.fillRect(x,GY-26,2,26);return}
+  const cols=[['#ab5236','#7a3b22'],['#93502e','#5a2a18'],['#c2c3c7','#83769c'],['#8a6a4a','#5a4430']][b.style];
+  g.fillStyle=cols[0];g.fillRect(b.x,top,b.w,GY-top);g.fillStyle=cols[1];for(let x=b.x;x<b.x+b.w;x+=4)g.fillRect(x,top,1,GY-top);
+  g.fillRect(b.x-2,top-3,b.w+4,4);const words=['BANK','HOTEL','STORE','SHERIFF','JAIL','BARBER','ASSAY','STABLE'],wd=words[Math.floor(b.x/7)%words.length];
+  g.fillStyle='#1d2b53';const sw=PXT.w(wd)+6;g.fillRect(b.x+b.w/2-sw/2,top+3,sw,9);PXT(g,wd,b.x+b.w/2-PXT.w(wd)/2,top+5,'#fff1e8');
+  g.fillStyle='#3a1f1a';g.fillRect(b.x+b.w/2-5,GY-16,10,16);g.fillStyle='#5a2a18';g.fillRect(b.x-2,GY-22,b.w+4,3);for(let x=b.x;x<b.x+b.w;x+=16)g.fillRect(x,GY-22,2,22);
+  g.fillStyle='#3a1f1a';g.fillRect(b.x+4,GY-6,6,6)},
+ drawSaveDoor(g,b,GY,t,sky,swing,used){const x=b.door;g.fillStyle='#0b0a12';g.fillRect(x-7,GY-20,14,20);
+  g.fillStyle=sky.night?'rgba(255,163,0,.55)':'rgba(255,163,0,.25)';g.fillRect(x-6,GY-19,12,18);
+  const k=swing>0?Math.abs(Math.cos(swing*.45)):1,lw=Math.max(1,Math.round(6*k));g.fillStyle='#ab5236';g.fillRect(x-6,GY-15,lw,9);g.fillRect(x+6-lw,GY-15,lw,9);
+  g.fillStyle='#7a3b22';for(let i=0;i<lw;i+=2){g.fillRect(x-6+i,GY-14,1,7);g.fillRect(x+5-i,GY-14,1,7)}
+  g.fillStyle='#ffec27';g.fillRect(x-1,GY-25,3,3);if(!used){const s='SAVE';PXT(g,s,x-PXT.w(s)/2,GY-32,(t>>4)%2?'#00e436':'#fff1e8')}},
+ drawWindow(g,w,t,sky){g.fillStyle='#3a1f1a';g.fillRect(w.x,w.y,10,12);const lit=sky.night&&((w.x*7+w.y)%5)<3;g.fillStyle=w.s?'#ffa300':lit?'#ffa300':'#1d2b53';g.fillRect(w.x+1,w.y+1,8,10);
+  if(!lit&&!w.s){g.fillStyle='#29507a';g.fillRect(w.x+2,w.y+2,2,1)}g.fillStyle='#5a2a18';g.fillRect(w.x+4,w.y,1,12);g.fillRect(w.x,w.y+5,10,1)},
+ drawPlat(g,q){g.fillStyle='#5a2a18';g.fillRect(q.x,q.y,q.w,3);g.fillStyle='#93502e';g.fillRect(q.x,q.y,q.w,1);for(let x=q.x;x<q.x+q.w;x+=4)g.fillRect(x,q.y-6,1,6);g.fillRect(q.x,q.y-6,q.w,1)},
+ drawGround(g,cam,W,GY,H,t,sky){g.fillStyle='#ab5236';g.fillRect(cam-4,GY,W+8,H-GY);g.fillStyle='#93502e';for(let x=Math.floor(cam/12)*12;x<cam+W+12;x+=12){g.fillRect(x,GY,11,2)}
+  g.fillStyle='#7a3b22';g.fillRect(cam-4,GY+6,W+8,1);g.fillRect(cam-4,GY+11,W+8,1);for(let x=Math.floor(cam/37)*37;x<cam+W+37;x+=37)g.fillRect(x+9,GY+8,3,2);
+  const tx=cam+W-((t*1.4)%(W+60));g.fillStyle='#8a6a4a';g.beginPath();g.arc(tx,GY-4,4,0,7);g.fill();g.fillStyle='#5a4430';g.fillRect(tx-3,GY-5,6,1);g.fillRect(tx-1,GY-7,1,6)},
+ drawDecor(g,d,GY,t,sky){const x=d.x;
+  if(d.k==='cactus'){const h=12+Math.round(d.v*10);g.fillStyle='#008751';g.fillRect(x,GY-h,4,h);g.fillRect(x-4,GY-h+4,3,6);g.fillRect(x-4,GY-h+8,6,2);g.fillRect(x+5,GY-h+2,3,6);g.fillRect(x+2,GY-h+6,6,2);g.fillStyle='#005b38';g.fillRect(x+3,GY-h,1,h)}
+  else if(d.k==='rock'){g.fillStyle='#83769c';g.fillRect(x,GY-6,12,6);g.fillRect(x+3,GY-9,7,3);g.fillStyle='#5f574f';g.fillRect(x,GY-2,12,2)}
+  else if(d.k==='fence'){g.fillStyle='#7a3b22';for(let i=0;i<4;i++)g.fillRect(x+i*7,GY-10,2,10);g.fillRect(x,GY-8,23,1);g.fillRect(x,GY-4,23,1)}
+  else if(d.k==='wheel'){g.strokeStyle='#5a2a18';g.lineWidth=1;g.beginPath();g.arc(x+6,GY-6,6,0,7);g.stroke();g.beginPath();g.moveTo(x,GY-6);g.lineTo(x+12,GY-6);g.moveTo(x+6,GY-12);g.lineTo(x+6,GY);g.stroke()}
+  else if(d.k==='skull'){g.fillStyle='#fff1e8';g.fillRect(x,GY-3,6,3);g.fillRect(x-2,GY-4,2,1);g.fillRect(x+6,GY-4,2,1);g.fillStyle='#000';g.fillRect(x+1,GY-2,1,1);g.fillRect(x+4,GY-2,1,1)}
+  else if(d.k==='post'){g.fillStyle='#7a3b22';g.fillRect(x+6,GY-16,2,16);g.fillRect(x,GY-16,20,7);PXT(g,'WEST',x+2,GY-15,'#fff1e8')}},
+ overlay(g,W,H,t,sky){if(sky.sun==='noon'){g.fillStyle='rgba(255,236,39,.05)';for(let i=0;i<5;i++){const y=(t*.5+i*27)%H;g.fillRect(0,y,W,1)}}}
+};
+</script>
+<script src="runner.js"></script>
+</body>
+</html>

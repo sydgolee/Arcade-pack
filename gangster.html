@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Tommy Gun Alley</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="arcade.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0a12">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
+</head>
+<body>
+<script>
+window.THEME={
+ key:'gangster_best',title:'TOMMY GUN<br>ALLEY',playLabel:'HIT THE STREETS',deadTitle:'SLEEPING WITH THE FISHES',
+ intro:'Chicago, 1929. Push through endless city blocks from midnight to a grey dawn. Halfway through every mile you take the wheel and run the highway. Slip into a speakeasy (behind the barber shop) to save, every 300m. Your tommy gun fires fast but overheats.',
+ accent:'#29adff',pageBg:'radial-gradient(ellipse at 50% 30%,#14203a 0,#0b0a12 70%)',titleShadow:'#1d2b53',
+ weapon:{heat:1,heatPer:.085,cool:.011,overT:120,delay:6,jitter:.06},overheat:'OVERHEATED!',
+ items:{rapid:'DRUM MAG',spread:'SAWED-OFF'},
+ names:{gunShot:"A MOBSTER'S SLUG",sniperShot:'A WINDOW GUNMAN',mountShot:'A DRIVE-BY',mount:'A SPEEDING CAR',bomb:'A PINEAPPLE GRENADE',boss:'BIG AL'},
+ killWord:'mobsters',bossName:'BOSS: BIG AL',bossDown:'BIG AL IS DOWN!',bossAt:[900],bossGap:1200,rideWin:[450,700],saveGap:2400,callMount:'CALL THE CAR!',mountWarn:'HEADLIGHTS AHEAD!',
+ zones:['LITTLE ITALY','THE DOCKS','SPEAKEASY ROW','WAREHOUSE DISTRICT','CITY HALL','THE STOCKYARDS','LAKESHORE DRIVE'],
+ skies:[{name:'MIDNIGHT',top:'#0b0a12',bot:'#1d2b53',dark:.36,sun:'moon'},{name:'DAWN',top:'#7e2553',bot:'#ffa300',dark:.1,sun:'rise'},
+        {name:'GREY DAY',top:'#5f574f',bot:'#c2c3c7',dark:0,sun:'cloud'},{name:'DUSK',top:'#1d2b53',bot:'#7e2553',dark:.22,sun:'set'}],
+ playerSprites:{
+  w1:["...HHHH...","...HHHH...","..HHHHHH..","...SSSS...","...SXSX...","...SSSS...","..BWRWB...","..BBRBBGGG","..SBBBB.G.","..BBBBBB..","...LLLL...","...L..L...","..KK..KK.."],
+  w2:["...HHHH...","...HHHH...","..HHHHHH..","...SSSS...","...SXSX...","...SSSS...","..BWRWB...","..BBRBBGGG","..SBBBB.G.","..BBBBBB..","...LLLL...","..L....L..",".KK....KK."],
+  jp:["...HHHH...","...HHHH...","..HHHHHH..","...SSSS...","...SXSX...","...SSSS...","..BWRWB...","..BBRBBGGG","..SBBBB.G.","..BBBBBB..","...LLLL...","..LL..LL..",".........."],
+  cr:["...HHHH...","...HHHH...","..HHHHHH..","...SSSS...","...SXSX...","...SSSS...","..BWRWBGGG","..SBBBB.G.","..LLLLLL..",".KK....KK."]},
+ playerMap:{H:'0',S:'f',X:'0',W:'7',R:'8',B:'0',G:'5',L:'0',K:'0'},
+ playerOutline:true,outlineMap:{H:'d',S:'d',X:'d',W:'d',R:'d',B:'d',G:'d',L:'d',K:'d','0':'d','1':'d','5':'d','c':'d','f':'d','6':'d','a':'d'},
+ enemyMap:{H:'0',S:'f',X:'0',B:'6',R:'8',G:'0',L:'5',K:'0'},
+ bossMap:{H:'7',S:'f',X:'0',B:'c',R:'a',G:'0',L:'1',K:'0'},
+ mount:[["......000000000.........",".....0ccc0cff0..........","....0cccc0ccff00000.....","..011111111111111111....",".1111111111111111111a...","11111111111111111111a...","1111111111111111111111..",".11000111111111110001...","..05550.........05550...","...000...........000...."],
+        ["......000000000.........",".....0ccc0cff0..........","....0cccc0ccff00000.....","..011111111111111111....",".1111111111111111111a...","11111111111111111111a...","1111111111111111111111..",".11000111111111110001...","..05650.........05650...","...000...........000...."]],
+ mountMap:{'1':'2'},
+ ride:true,rideOn:'BEHIND THE WHEEL!',rideOff:'OUT OF THE CAR',rideJump:-2.4,rideGunH:8,rideSmash:true,rideRect:[22,10],
+ rideMap:{'1':'0','0':'5'},
+ openDecor:['lamp','girder','billboard','hydrant','girder','lamp','girder'],openProp:'crate',
+ blood:'#ff004d',eBullet:'#ff77a8',bombColor:'#ffa300',shotTone:3600,shotPitch:240,
+ music:{bpm:132,swing:.22,roots:[41,46,41,48],bossRoots:[41,42,41,40],bass:[0,-1,4,-1,7,-1,9,-1,10,-1,9,-1,7,-1,4,-1],
+  lead:[12,-1,-1,15,-1,12,-1,10,-1,-1,7,-1,-1,-1,-1,-1,12,-1,-1,15,-1,17,-1,15,-1,12,-1,10,-1,-1,-1,-1]},
+ drawSky(g,W,H,t,cam,sky){const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,sky.top);gr.addColorStop(1,sky.bot);g.fillStyle=gr;g.fillRect(0,0,W,H);
+  if(sky.sun==='moon'){g.fillStyle='#fff1e8';g.beginPath();g.arc(140,22,8,0,7);g.fill();g.fillStyle=sky.top;g.beginPath();g.arc(144,20,7,0,7);g.fill()}
+  else if(sky.sun==='cloud'){g.fillStyle='#83769c';const o=-(cam*.05+t*.05)%200;for(let k=-1;k<3;k++){const x=o+k*200;g.fillRect(x+20,18,50,8);g.fillRect(x+30,12,26,8);g.fillRect(x+110,30,40,6)}}
+  else{g.fillStyle='#ffa300';g.beginPath();g.arc(sky.sun==='rise'?30:140,72,12,0,7);g.fill()}
+  const far=MIX(sky.bot,'#0b0a12',sky.night?.4:.55);const o1=-(cam*.15)%160;for(let k=-1;k<3;k++){const x=o1+k*160;g.fillStyle=far;g.fillRect(x,40,30,70);g.fillRect(x+34,56,26,54);g.fillRect(x+64,30,22,80);g.fillRect(x+70,22,10,10);g.fillRect(x+73,14,4,8);g.fillRect(x+90,50,40,60);
+   if(sky.night){g.fillStyle='#ffec27';for(let i=0;i<16;i++){if((i*7+k)%3)continue;g.fillRect(x+4+(i*9)%120,48+(i*13)%50,2,2)}}}},
+ drawBuilding(g,b,GY,t,sky){const top=b.top;
+  if(b.save){g.fillStyle='#3d2a24';g.fillRect(b.x,top,b.w,GY-top);g.fillStyle='#2a1d18';for(let y=top;y<GY;y+=4){g.fillRect(b.x,y,b.w,1);for(let x=b.x+((y/4)%2)*4;x<b.x+b.w;x+=8)g.fillRect(x,y,1,4)}
+   g.fillStyle='#000';g.fillRect(b.x-1,top-2,b.w+2,3);g.fillStyle='#14100c';g.fillRect(b.x+14,GY-34,b.w-28,9);const s='BARBER';PXT(g,s,b.x+b.w/2-PXT.w(s)/2,GY-32,'#c2c3c7');
+   g.fillStyle='#ff004d';g.fillRect(b.x+10,GY-30,2,12);g.fillStyle='#fff1e8';for(let i=0;i<12;i+=4)g.fillRect(b.x+10,GY-30+((i+(t>>3))%12),2,2);g.fillStyle='#5f574f';g.fillRect(b.door-12,GY-2,24,2);return}
+  const cols=[['#7e2553','#5a1838'],['#5f574f','#3d3846'],['#ab5236','#7a3b22'],['#29507a','#1d3a53']][b.style];
+  g.fillStyle=cols[0];g.fillRect(b.x,top,b.w,GY-top);g.fillStyle=cols[1];for(let y=top;y<GY;y+=4){g.fillRect(b.x,y,b.w,1);for(let x=b.x+((y/4)%2)*4;x<b.x+b.w;x+=8)g.fillRect(x,y,1,4)}
+  g.fillStyle='#000';g.fillRect(b.x-1,top-2,b.w+2,3);
+  const words=['HOTEL','PAWN','CAFE','JAZZ','DINER','BAR','CLUB','LOANS'],wd=words[Math.floor(b.x/7)%words.length],neon=['#ff004d','#29adff','#00e436','#ff77a8'][b.style];
+  const sw=PXT.w(wd)+6;g.fillStyle='#14100c';g.fillRect(b.x+b.w/2-sw/2,GY-32,sw,9);b.neon={wd,x:b.x+b.w/2-PXT.w(wd)/2,y:GY-30,c:neon};
+  if(!sky.night)PXT(g,wd,b.neon.x,b.neon.y,'#5f574f');
+  g.fillStyle='#14100c';g.fillRect(b.x+b.w/2-5,GY-16,10,16)},
+ drawSaveDoor(g,b,GY,t,sky,swing,used){const x=b.door;g.fillStyle='#0b0a12';g.fillRect(x-7,GY-20,14,20);
+  if(swing>0){g.fillStyle='rgba(255,163,0,.6)';g.fillRect(x-6,GY-19,12,19)}
+  const k=swing>0?Math.abs(Math.cos(swing*.3)):1,dw=Math.max(1,Math.round(12*k));g.fillStyle='#5a2a18';g.fillRect(x-6,GY-19,dw,19);g.fillStyle='#3a1f1a';g.fillRect(x-6,GY-19,dw,1);
+  if(dw>8){g.fillStyle='#000';g.fillRect(x-3,GY-15,6,2);g.fillStyle='#ffec27';g.fillRect(x+3,GY-9,1,2)}
+  if(!used){const s='SAVE';PXT(g,s,x-PXT.w(s)/2,GY-44,(t>>4)%2?'#00e436':'#fff1e8')}},
+ drawWindow(g,w,t,sky){g.fillStyle='#0b0a12';g.fillRect(w.x,w.y,10,12);const lit=w.s||(sky.night&&((w.x*7+w.y)%5)<2);g.fillStyle=w.s?'#ffa300':lit?'#ffec27':(sky.night?'#1d2b53':'#5f574f');g.fillRect(w.x+1,w.y+1,8,10);
+  if(!lit&&!sky.night){g.fillStyle='#c2c3c7';g.fillRect(w.x+2,w.y+2,2,1)}g.fillStyle='#0b0a12';g.fillRect(w.x+4,w.y,1,12)},
+ drawLights(g,cam,W,GY,t,sky){if(!sky.night&&sky.dark<.15)return;
+  for(const b of (window.__r.S||{bld:[]}).bld)if(b.neon&&((t>>4)%5||b.style%2)){PXT(g,b.neon.wd,b.neon.x,b.neon.y,b.neon.c)}
+  for(let x=Math.floor(cam/96)*96;x<cam+W+96;x+=96){if((window.__r.S||{bld:[]}).bld.some(b=>b.save&&Math.abs(b.door-x-41)<22))continue;g.fillStyle='rgba(255,236,39,.14)';g.beginPath();g.moveTo(x+41,GY-39);g.lineTo(x+28,GY);g.lineTo(x+54,GY);g.fill();g.fillStyle='#ffec27';g.fillRect(x+38,GY-39,6,2)}},
+ drawPlat(g,q){g.fillStyle='#5f574f';g.fillRect(q.x,q.y,q.w,2);for(let x=q.x;x<q.x+q.w;x+=3)g.fillRect(x,q.y-7,1,7);g.fillRect(q.x,q.y-7,q.w,1);g.fillStyle='#83769c';g.fillRect(q.x,q.y,q.w,1)},
+ drawGround(g,cam,W,GY,H,t,sky){g.fillStyle='#3d3846';g.fillRect(cam-4,GY,W+8,4);g.fillStyle='#1a1a24';g.fillRect(cam-4,GY+4,W+8,H-GY);g.fillStyle='#5f574f';for(let x=Math.floor(cam/16)*16;x<cam+W+16;x+=16)g.fillRect(x,GY,1,4);
+  g.fillStyle='#83769c';g.fillRect(cam-4,GY+9,W+8,1);g.fillStyle='#ffec27';for(let x=Math.floor(cam/24)*24;x<cam+W+24;x+=24)g.fillRect(x,GY+12,10,1);
+  const nearDoor=x=>((window.__r.S||{bld:[]}).bld.some(b=>b.save&&Math.abs(b.door-x-41)<22));for(let x=Math.floor(cam/96)*96;x<cam+W+96;x+=96){if(nearDoor(x))continue;g.fillStyle='#000';g.fillRect(x+40,GY-40,2,40);g.fillRect(x+36,GY-42,10,3)}
+  if(sky.dark>.15){g.fillStyle='#83769c';for(let i=0;i<6;i++){const sx=cam+((i*61+t*2)%W),k=(t+i*7)%10;if(k<3){g.fillRect(sx-k,GY-1,1,1);g.fillRect(sx+k,GY-1,1,1)}}}},
+ drawDecor(g,d,GY,t,sky){const x=d.x;
+  if(d.k==='lamp'){g.fillStyle='#000';g.fillRect(x+4,GY-44,2,44);g.fillRect(x,GY-46,10,3);g.fillStyle=sky.night?'#ffec27':'#5f574f';g.fillRect(x+2,GY-43,6,2)}
+  else if(d.k==='girder'){g.fillStyle='#3d3846';g.fillRect(x,GY-46,36,3);for(let i=0;i<36;i+=6){g.fillRect(x+i,GY-43+((i/6)%2?0:0),2,43)}g.strokeStyle='#3d3846';g.lineWidth=1;g.beginPath();for(let i=0;i<36;i+=12){g.moveTo(x+i,GY-43);g.lineTo(x+i+12,GY);g.moveTo(x+i+12,GY-43);g.lineTo(x+i,GY)}g.stroke()}
+  else if(d.k==='billboard'){g.fillStyle='#000';g.fillRect(x+6,GY-30,2,30);g.fillRect(x+30,GY-30,2,30);g.fillStyle='#fff1e8';g.fillRect(x,GY-50,40,20);g.fillStyle='#ff004d';g.fillRect(x+2,GY-48,36,16);PXT(g,'JAZZ',x+4,GY-46,'#ffec27');PXT(g,'5¢',x+24,GY-46,'#fff1e8');PXT(g,'NITE',x+4,GY-39,'#fff1e8')}
+  else if(d.k==='hydrant'){g.fillStyle='#ff004d';g.fillRect(x,GY-7,5,7);g.fillRect(x-1,GY-5,7,2);g.fillRect(x+1,GY-8,3,1)}},
+ overlay(g,W,H,t,sky){if(sky.dark<.15)return;g.fillStyle='rgba(131,118,156,.45)';for(let i=0;i<40;i++){const x=(i*37+t*1.3)%W,y=(i*53+t*4.5)%H;g.fillRect(x|0,y|0,1,3)}}
+};
+</script>
+<script src="runner.js"></script>
+</body>
+</html>

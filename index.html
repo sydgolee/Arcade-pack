@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>8-Bit Arcade Pack: six free retro games</title>
+<meta name="description" content="Six free 8-bit games in your browser: a roguelite dungeon, two endless run-and-guns, Wall Maze, Fleet Strike and 8-Ball. No sign-up, no ads, works offline.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="8-Bit Arcade Pack">
+<meta property="og:description" content="Six free retro games. No sign-up, no ads, works offline.">
+<meta property="og:image" content="https://sydgolee.github.io/arcade-pack/og.png">
+<meta property="og:url" content="https://sydgolee.github.io/arcade-pack/">
+<meta name="twitter:card" content="summary_large_image">
+<link href="fonts/fonts.css" rel="stylesheet">
+<link href="site.css" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0a12">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="8-Bit Arcade">
+<script src="arcade.js"></script>
+</head>
+<body>
+<div id="boot" role="button" tabindex="0" aria-label="Press start" hidden>
+ <div class="logo">8-BIT<br>ARCADE PACK</div>
+ <div class="press">PRESS START</div>
+ <div class="credit">© 2026 Syd Golee · v<span class="ver"></span></div>
+</div>
+<div class="top">
+ <button class="chip" id="who" type="button" aria-label="Change your player name">P1 <i id="whoN">SET NAME</i></button>
+ <button class="chip" id="share" type="button">SHARE ▶</button>
+</div>
+<div class="wrap">
+<h1>8-BIT ARCADE PACK</h1>
+<p class="sub">Six games. One coin slot. Tap a cartridge.</p>
+<div class="grid" id="grid"></div>
+<p class="foot"><a href="about.html">About</a> · <a href="privacy.html">Privacy</a> · <a href="about.html#changes">What's new</a> · v<span class="ver"></span></p>
+</div>
+<script>
+{
+const C=['#000000','#1d2b53','#7e2553','#008751','#ab5236','#5f574f','#c2c3c7','#fff1e8','#ff004d','#ffa300','#ffec27','#00e436','#29adff','#83769c','#ff77a8','#ffccaa'];
+const store=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}};
+const GAMES=[
+ {f:'dungeon.html',id:'dungeon',sv:'door_save',t:'DUNGEON OF ONE ROOM',d:'Roguelite. Clear the room, draft a rule that never goes away, go deeper.',c:'#ffec27',best:()=>{const s=store('door_bestS'),r=store('door_best'),n=store('door_runs'),st=store('door_streak');return n?`Best score ${s||0} · room ${r||0}`+(st&&st.n?` · daily streak ${st.n}`:''):''},
+  icon:["................","................","...55555555555..","..5111111111115.","..51111bb111115.","..5111bbbb11115.","..511bb0b0b1115.","..511bbbbbb1115.","..51111111c1115.","..5111111666115.","..5111111616115.","..51111116611l5.","..5111111111115.","...55555555555..","................","................"]},
+ {f:'wallmaze.html',id:'wallmaze',t:'WALL MAZE',d:'Strategy duel. Race to the far side and wall in your rival.',c:'#29adff',best:()=>{const r=store('quor_rec');return r?`vs CPU: ${r.w} W · ${r.l} L`:''},
+  icon:["4444444444444444","4999499949994999","4999499949994999","4999499949994999","444444aaaaaa4444","4999499949994999","4988499949994999","4988499949994999","4444444444444444","4999a99949994999","4999a99949cc4999","4999a99949cc4999","4444a44444444444","4999499949994999","4999499949994999","4444444444444444"]},
+ {f:'fleet.html',id:'fleet',t:'FLEET STRIKE',d:'Naval classic. Hide your fleet, hunt theirs. Three admirals to beat.',c:'#c2c3c7',best:()=>{const r=store('bs_rec');return r?`${r.w} W · ${r.l} L${r.best?` · best ${r.best} shots`:''}`:''},
+  icon:["1111111111111111","1111111111111111","1111111661111111","1111116666111111","1111166666611111","1166666666666611","1666666666666661","1166666666666611","1111111111111111","11c1111111c11111","1c7c11111c7c1111","11c1111111c11111","1111118811111111","1111189981111111","1111118811111111","1111111111111111"]},
+ {f:'cowboy.html',id:'cowboy',sv:'cowboy_best_save',t:'HIGH NOON RIDER',d:'Endless western run-and-gun. Ride your horse across the prairie, save at saloons, noon to starry night.',c:'#ffa300',best:()=>{const b=store('cowboy_best');return b?`Best ${b.s} · ${b.m}m`:''},
+  icon:["eeeeeeeeeeeeeeee","eeeeeeeeeeeaaeee","eeeeeeeeeeaaaaee","999999999999999a","9999994444999999","9999944444499999","9999999ff9999999","99999990f0999999","99999ccccc999999","9999cccccc666999","9999fcccc9999999","99999cccc9999999","9999911111999999","4444411441144444","4444444444444444","4444444444444444"]},
+ {f:'gangster.html',id:'gangster',sv:'gangster_best_save',t:'TOMMY GUN ALLEY',d:'Endless 1929 Chicago shootout. Drive the highway, hide in speakeasies, midnight to grey dawn.',c:'#ff77a8',best:()=>{const b=store('gangster_best');return b?`Best ${b.s} · ${b.m}m`:''},
+  icon:["0000000000000000","0d00000000000d00","000000777000000d","00a00a0700a00a00","0000000000000000","2222222555522222","2a2a222555552a22","22222222ff222222","2a2a22220f0222a2","2222220dddd00002","2a2a2dddddd22222","22222fdddd222222","2222211111222222","5555511551155555","1111111111111111","1d1111d1111d1111"]},
+ {f:'billiards.html',id:'pool',t:'8-BALL',d:'Pool hall classic. Solids or stripes, then sink the black.',c:'#00e436',best:()=>{const r=store('pool_rec');return r?`vs CPU: ${r.w} W · ${r.l} L`:''},
+  icon:["4444444444444444","4033333333333304","4333333333333334","4333333aa3333334","433333aaaa333334","433333aaaa333334","4333333aa3333334","4033333333333304","4333383338333334","4333888308883334","4333383008333334","43333333c3333334","4333333777333334","4333333373333334","4033333333333304","4444444444444444"]}
+];
+document.querySelectorAll('.ver').forEach(e=>e.textContent=ARC.VERSION);
+const grid=document.getElementById('grid');
+grid.innerHTML=GAMES.map((G,i)=>{const top=ARC.board(G.id)[0],sv=G.sv&&store(G.sv);
+ const line=[top?`#1 ${ARC.esc(top.n||'YOU')} · ${top.s}`:'',G.best()].filter(Boolean).join(' · ')||'Not played yet';
+ return `<a class="cart" href="${G.f}" style="--c:${G.c}"><span class="n">${sv?'SAVED':(i+1)+'/6'}</span><canvas width="16" height="16" data-i="${i}" aria-hidden="true"></canvas><div><b>${G.t}</b><span>${G.d}</span><em>${line}</em></div></a>`}).join('');
+for(const cv of grid.querySelectorAll('canvas')){const G=GAMES[cv.dataset.i],x=cv.getContext('2d');G.icon.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch==='.')return;const n=parseInt(ch,16);if(isNaN(n))return;x.fillStyle=C[n];x.fillRect(i,j,1,1)}))}
+const who=document.getElementById('whoN');const showWho=()=>who.textContent=ARC.name()||'SET NAME';showWho();
+document.getElementById('who').addEventListener('click',()=>{const ov=ARC.modal(`<h2>PLAYER NAME</h2><p>Shown on your leaderboards. Up to 12 letters or numbers.</p><input id="nm" maxlength="12" value="${ARC.esc(ARC.name())}" placeholder="YOUR NAME" autocomplete="nickname" spellcheck="false"><div class="arc-row"><button class="arc-b arc-ghost" data-x>CANCEL</button><button class="arc-b" id="nmOk">SAVE</button></div>`);
+ const i=ov.querySelector('#nm'),ok=()=>{ARC.setName(i.value);showWho();ov.remove()};ov.querySelector('#nmOk').onclick=ok;i.addEventListener('keydown',e=>{if(e.key==='Enter')ok()})});
+document.getElementById('share').addEventListener('click',async()=>{const url=location.href.split('#')[0].replace(/index\.html$/,'');const data={title:'8-Bit Arcade Pack',text:'Six free 8-bit games in your browser. No sign-up, no ads.',url};
+ try{if(navigator.share){await navigator.share(data);return}await navigator.clipboard.writeText(url);ARC.toast('LINK COPIED','Paste it anywhere to share.','#29adff')}catch(e){if(e&&e.name!=='AbortError')ARC.toast('SHARE THIS LINK',url,'#29adff')}});
+const boot=document.getElementById('boot');
+let seen=false;try{seen=sessionStorage.getItem('arc_boot')}catch(e){}
+if(!seen){boot.hidden=false;const go=()=>{boot.hidden=true;try{sessionStorage.setItem('arc_boot','1')}catch(e){}try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.type='square';o.frequency.setValueAtTime(523,a.currentTime);o.frequency.setValueAtTime(784,a.currentTime+.08);g.gain.setValueAtTime(.06,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.25);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.26)}catch(e){}grid.querySelector('a')?.focus({preventScroll:true})};
+ boot.addEventListener('click',go);addEventListener('keydown',function k(e){if(!boot.hidden&&(e.key==='Enter'||e.key===' ')){e.preventDefault();go();removeEventListener('keydown',k)}});boot.focus()}
+}
+</script>
+<script src="shell.js"></script>
+</body>
+</html>

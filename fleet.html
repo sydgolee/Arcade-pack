@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Fleet Strike</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="arcade.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0a12">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
+<style>
+/* VOICE: naval command console, terse radio calls
+   IDEA: a sonar plotting table in 8-bit
+   PICTURE: the enemy sea grid fills the screen, your fleet below
+   COLOUR and TYPE: deep navy sea, grey hulls, orange fire, white splash; Press Start 2P + VT323
+   LAYOUT: top bar, status line, enemy grid, own grid, controls */
+:root{color-scheme:dark;--bg:#0b0a12;--stone:#17151f;--ink:#fff1e8;--dim:#9a8fb0;--gold:#ffec27;--red:#ff004d;--blue:#29adff;--orange:#ffa300}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden}
+body{font:20px/1.15 "VT323",ui-monospace,monospace;user-select:none;-webkit-user-select:none;touch-action:manipulation;background:radial-gradient(ellipse at 50% 30%,#14203a 0,#0b0a12 70%)}
+#app{display:flex;flex-direction:column;align-items:center;height:100%;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));gap:6px;overflow:auto}
+#top{width:var(--bw);display:flex;align-items:center;gap:8px;font:10px "Press Start 2P",monospace}
+#top a{color:var(--dim);text-decoration:none;padding:14px 4px}
+#title{flex:1;text-align:center;color:var(--gold)}
+#status{width:var(--bw);text-align:center;font:11px/1.6 "Press Start 2P",monospace;min-height:36px;color:var(--ink)}
+.lbl{width:var(--bw);display:flex;justify-content:space-between;font-size:17px;color:var(--dim)}
+canvas{display:block;touch-action:none}
+#fleetRow{width:var(--bw);display:flex;gap:10px;align-items:flex-start}
+#mini{flex:none}
+#side{flex:1;display:flex;flex-direction:column;gap:6px;font-size:17px}
+.ships span{display:flex;gap:2px;align-items:center;margin:2px 0}.ships i{width:9px;height:9px;background:#c2c3c7;display:block}.ships .dead i{background:#ff004d}.ships .dead{color:var(--dim);text-decoration:line-through}
+#ctrl{width:var(--bw);display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:11px "Press Start 2P",monospace;background:var(--gold);color:#000;border:0;padding:12px 10px;box-shadow:0 5px 0 #ab5236;cursor:pointer;min-height:46px;flex:1}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 #ab5236}
+.btn.ghost{background:var(--stone);color:var(--ink);box-shadow:0 5px 0 #000}
+.btn:disabled{opacity:.35}.btn:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.ov{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:flex-start;background:rgba(11,10,18,.97);text-align:center;padding:20px 16px;overflow:auto;z-index:5}
+.ov.on{display:flex}.ov>:first-child{margin-top:auto}.ov>:last-child{margin-bottom:auto}
+.ov h1{font:clamp(20px,6vw,32px)/1.35 "Press Start 2P",monospace;color:var(--gold);text-shadow:4px 4px 0 #1d2b53;margin:0 0 12px}
+.ov p{max-width:440px;margin:6px 0}.ov .btn{flex:none;width:260px;margin:6px}
+.muted{color:var(--dim)}
+.seg{display:flex;gap:6px;margin:6px 0}.seg .btn{width:auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top"><a href="index.html">◀ PACK</a><span id="title">FLEET STRIKE</span><button class="btn ghost" id="menuBtn" style="flex:none;min-height:44px;min-width:44px;padding:8px" aria-label="Menu">≡</button></div>
+  <div id="status">PLACE YOUR FLEET</div>
+  <div class="lbl"><span id="bigLbl">YOUR WATERS</span><span id="shots"></span></div>
+  <canvas id="big" aria-label="Main grid"></canvas>
+  <div id="fleetRow">
+    <div style="flex:none"><div class="lbl" style="width:auto;font-size:15px">YOUR FLEET</div><canvas id="mini" aria-label="Your fleet"></canvas></div>
+    <div id="side"><div class="lbl" style="width:auto"><span id="sideLbl">ENEMY SHIPS</span></div><div class="ships" id="eShips"></div></div>
+  </div>
+  <div id="ctrl">
+    <button class="btn ghost" id="rot">⟲ ROTATE</button>
+    <button class="btn ghost" id="shuf">SHUFFLE</button>
+    <button class="btn" id="go">START BATTLE</button>
+  </div>
+</div>
+
+<div class="ov on" id="start">
+  <a href="index.html" class="btn ghost" style="flex:none;min-height:44px;width:auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">◀ BACK TO PACK</a>
+  <h1>FLEET STRIKE</h1>
+  <p>Hide your fleet, then take turns firing at the enemy grid. Sink all five ships first.</p>
+  <p class="muted">Carrier 5 · Battleship 4 · Cruiser 3 · Submarine 3 · Destroyer 2</p>
+  <p style="font:10px 'Press Start 2P',monospace;margin-top:14px">ENEMY ADMIRAL</p>
+  <div class="seg"><button class="btn" data-lvl="0">CADET</button><button class="btn" data-lvl="1">CAPTAIN</button><button class="btn" data-lvl="2">ADMIRAL</button></div>
+  <button class="btn ghost" id="resume" style="display:none">RESUME GAME</button>
+  <p class="muted" id="rec"></p>
+</div>
+<div class="ov" id="end" style="background:rgba(11,10,18,.55);justify-content:flex-end">
+  <div style="background:#0b0a12;border:3px solid #2a2535;padding:14px 12px;max-width:440px;width:100%"><h1 id="endT">VICTORY</h1>
+  <p id="endP"></p></div>
+  <button class="btn" id="again">PLAY AGAIN</button>
+  <button class="btn ghost" id="toMenu">MENU</button>
+</div>
+
+<script>
+{
+const $=id=>document.getElementById(id),N=10,FLEET=[['CARRIER',5],['BATTLESHIP',4],['CRUISER',3],['SUBMARINE',3],['DESTROYER',2]];
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let ac=null;function beep(f,d=.08,type='square',v=.04,sl=0){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+sl),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+function boom(){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const b=ac.createBuffer(1,ac.sampleRate*.4,ac.sampleRate),a=b.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=(Math.random()*2-1)*(1-i/a.length);const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=700;g.gain.value=.25;s.connect(f).connect(g).connect(ac.destination);s.start()}catch(e){}}
+const splash=()=>beep(900,.18,'triangle',.03,-700);
+
+/* ---------- boards ---------- */
+function cellsOf(sh){const out=[];for(let i=0;i<sh.len;i++)out.push(sh.h?[sh.x+i,sh.y]:[sh.x,sh.y+i]);return out}
+function fits(ships,sh,ignore){for(const[x,y]of cellsOf(sh)){if(x<0||y<0||x>=N||y>=N)return false;
+  for(const o of ships){if(o===ignore||o===sh)continue;for(const[a,b]of cellsOf(o))if(a===x&&b===y)return false}}return true}
+function randomFleet(){for(;;){const ships=[];let ok=true;
+  for(const[n,len]of FLEET){let placed=false;for(let k=0;k<200&&!placed;k++){const sh={n,len,h:Math.random()<.5,x:0,y:0,hits:0};sh.x=Math.floor(Math.random()*(N-(sh.h?len-1:0)));sh.y=Math.floor(Math.random()*(N-(sh.h?0:len-1)));if(fits(ships,sh)){ships.push(sh);placed=true}}if(!placed){ok=false;break}}
+  if(ok)return ships}}
+const shipAt=(ships,x,y)=>ships.find(s=>cellsOf(s).some(([a,b])=>a===x&&b===y));
+function newBoard(ships){return{ships,shot:new Uint8Array(N*N)}}// shot: 0 none, 1 miss, 2 hit, 3 sunk
+
+/* ---------- AI ---------- */
+function aiPick(bd,lvl){const sh=bd.shot,free=[];for(let i=0;i<N*N;i++)if(!sh[i])free.push(i);
+ const hits=[];for(let i=0;i<N*N;i++)if(sh[i]===2)hits.push(i);
+ if(lvl===0){if(hits.length&&Math.random()<.8){const adj=[];for(const h of hits){const x=h%N,y=h/N|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx>=0&&ny>=0&&nx<N&&ny<N&&!sh[nx+ny*N])adj.push(nx+ny*N)}}if(adj.length)return adj[Math.floor(Math.random()*adj.length)]}return free[Math.floor(Math.random()*free.length)]}
+ if(lvl===1){if(hits.length){// target mode: extend lines first
+   const cand=new Map();for(const h of hits){const x=h%N,y=h/N|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=N||ny>=N||sh[nx+ny*N])continue;
+     const bx=x-dx,by=y-dy,line=bx>=0&&by>=0&&bx<N&&by<N&&sh[bx+by*N]===2;cand.set(nx+ny*N,(cand.get(nx+ny*N)||0)+(line?5:1))}}
+   if(cand.size){let best=-1,bv=-1;for(const[k,v]of cand)if(v>bv||(v===bv&&Math.random()<.5)){bv=v;best=k}return best}}
+  const par=free.filter(i=>((i%N)+(i/N|0))%2===0);const pool=par.length?par:free;return pool[Math.floor(Math.random()*pool.length)]}
+ // admiral: probability density
+ const alive=bd.ships.filter(s=>s.hits<s.len).map(s=>s.len),score=new Float32Array(N*N);
+ for(const len of alive)for(const h of[true,false])for(let y=0;y<N-(h?0:len-1);y++)for(let x=0;x<N-(h?len-1:0);x++){
+  let ok=true,hc=0;const cs=[];for(let i=0;i<len;i++){const cx=h?x+i:x,cy=h?y:y+i,v=sh[cx+cy*N];if(v===1||v===3){ok=false;break}if(v===2)hc++;cs.push(cx+cy*N)}
+  if(!ok)continue;const w=hc?1+hc*25:1;for(const c of cs)if(!sh[c])score[c]+=w}
+ let best=free[0],bv=-1;for(const i of free){const v=score[i]+Math.random()*.01+(hits.length?0:(((i%N)+(i/N|0))%2===0?.5:0));if(v>bv){bv=v;best=i}}return best}
+
+/* ---------- state ---------- */
+let started=false,cpuT=0,kc=-1,phase='place',lvl=1,me=null,cpu=null,sel=null,turn='me',busy=false,shots=0,hitsN=0,fx=[],lastShot={me:-1,cpu:-1};
+const big=$('big'),bg=big.getContext('2d'),mini=$('mini'),mg=mini.getContext('2d');let BW=300,MW=150,dpr=1;
+let GU=18;
+function layout(){dpr=Math.min(3,devicePixelRatio||1);const aw=Math.min(innerWidth-16,560),ah=innerHeight-(phase==='place'?250:330);const tot=Math.min(aw,ah);GU=Math.max(14,Math.round(tot/12));BW=Math.floor((tot-GU)/N)*N;
+ MW=phase==='place'?0:Math.floor(Math.min(BW*.46,Math.max(100,innerHeight-BW-GU-240))/N)*N;MW=Math.max(MW,phase==='place'?0:100);
+ big.width=(BW+GU)*dpr;big.height=(BW+GU)*dpr;big.style.width=(BW+GU)+'px';big.style.height=(BW+GU)+'px';
+ mini.width=MW*dpr;mini.height=MW*dpr;mini.style.width=MW+'px';mini.style.height=MW+'px';$('fleetRow').style.display=phase==='place'?'none':'flex';
+ document.documentElement.style.setProperty('--bw',(BW+GU)+'px')}
+function drawGrid(g,W,bd,showShips,t,selShip,ox=0){const c=W/N;g.setTransform(dpr,0,0,dpr,0,0);if(ox){g.fillStyle='#0b0a12';g.fillRect(0,0,W+ox,W+ox);g.fillStyle='#9a8fb0';g.font=`${Math.round(ox*.55)}px "Press Start 2P",monospace`;g.textAlign='center';g.textBaseline='middle';for(let i=0;i<N;i++){g.fillText(String.fromCharCode(65+i),ox+i*c+c/2,ox/2);g.fillText(i+1,ox/2,ox+i*c+c/2)}}g.setTransform(dpr,0,0,dpr,ox*dpr,ox*dpr);
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++){g.fillStyle=(x+y)%2?'#1d2b53':'#1a2750';g.fillRect(x*c,y*c,c,c);
+  if((x*7+y*3+(t>>4))%11===0){g.fillStyle='#29507a';g.fillRect(x*c+c*.2,y*c+c*.5,c*.3,Math.max(1,c*.06))}}
+ g.strokeStyle='rgba(0,0,0,.35)';g.lineWidth=1;for(let i=1;i<N;i++){g.beginPath();g.moveTo(i*c,0);g.lineTo(i*c,W);g.moveTo(0,i*c);g.lineTo(W,i*c);g.stroke()}
+ for(const s of bd.ships){const sunk=s.hits>=s.len;if(!showShips&&!sunk&&!s.reveal)continue;if(s.reveal&&!sunk)g.globalAlpha=.6;const cs=cellsOf(s),x0=cs[0][0]*c,y0=cs[0][1]*c,w=s.h?s.len*c:c,h=s.h?c:s.len*c;
+  g.fillStyle=sunk?'#5f574f':'#c2c3c7';g.fillRect(x0+c*.12,y0+c*.12,w-c*.24,h-c*.24);g.fillStyle=sunk?'#3a3540':'#83769c';
+  for(let i=0;i<s.len;i++){const px=s.h?x0+i*c:x0,py=s.h?y0:y0+i*c;g.fillRect(px+c*.38,py+c*.38,c*.24,c*.24)}
+  if(s===selShip){g.strokeStyle='#ffec27';g.lineWidth=3;g.strokeRect(x0+2,y0+2,w-4,h-4)}g.globalAlpha=1}
+ for(let i=0;i<N*N;i++){const v=bd.shot[i];if(!v)continue;const x=(i%N)*c,y=(i/N|0)*c;
+  if(v===1){g.fillStyle='#c2c3c7';g.beginPath();g.arc(x+c/2,y+c/2,c*.13,0,7);g.fill();g.strokeStyle='rgba(255,241,232,.35)';g.beginPath();g.arc(x+c/2,y+c/2,c*.3,0,7);g.stroke()}
+  else{g.fillStyle=v===3?'#7e2553':'#ff004d';g.fillRect(x+c*.22,y+c*.22,c*.56,c*.56);g.fillStyle=(t>>3)%2?'#ffa300':'#ffec27';g.fillRect(x+c*.38+((t>>4)%2),y+c*.3,c*.24,c*.24)}}
+ return c}
+function draw(t){if(!me)return;
+ if(phase==='place')drawGrid(bg,BW,me,true,t,sel,GU);
+ else{const c=drawGrid(bg,BW,cpu,false,t,null,GU);if(kc>=0&&phase==='battle'){bg.strokeStyle='#29adff';bg.lineWidth=2;bg.strokeRect((kc%N)*c+3,(kc/N|0)*c+3,c-6,c-6)}if(lastShot.me>=0){bg.strokeStyle='#ffec27';bg.lineWidth=2;bg.strokeRect((lastShot.me%N)*c+1,(lastShot.me/N|0)*c+1,c-2,c-2)}
+  const mc=drawGrid(mg,MW,me,true,t,null);if(lastShot.cpu>=0){mg.strokeStyle='#ffec27';mg.lineWidth=2;mg.strokeRect((lastShot.cpu%N)*mc+1,(lastShot.cpu/N|0)*mc+1,mc-2,mc-2)}}
+ bg.setTransform(dpr,0,0,dpr,GU*dpr,GU*dpr);for(const f of fx){const a=f.life/30;bg.globalAlpha=a;bg.fillStyle=f.c;bg.fillRect(f.x,f.y,f.s,f.s);f.x+=f.vx;f.y+=f.vy;f.vy+=.15;f.life--}bg.globalAlpha=1;fx=fx.filter(f=>f.life>0)}
+function burst(i,c,col,n=18){const x=(i%N+.5)*c,y=((i/N|0)+.5)*c;for(let k=0;k<n;k++){const a=Math.random()*6.28,v=1+Math.random()*3;fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1,life:20+Math.random()*12,s:3,c:col})}}
+function fleetList(){$('eShips').innerHTML=cpu.ships.map(s=>`<span class="${s.hits>=s.len?'dead':''}">${'<i></i>'.repeat(s.len)}&nbsp;${s.n}</span>`).join('')}
+function setStatus(t,col){$('status').textContent=t;$('status').style.color=col||''}
+function fire(bd,i){const x=i%N,y=i/N|0,s=shipAt(bd.ships,x,y);if(!s){bd.shot[i]=1;return{hit:false}}
+ bd.shot[i]=2;s.hits++;if(s.hits>=s.len){for(const[a,b]of cellsOf(s))bd.shot[a+b*N]=3;return{hit:true,sunk:s}}return{hit:true}}
+const allSunk=bd=>bd.ships.every(s=>s.hits>=s.len);
+function playerShot(i){if(phase!=='battle'||turn!=='me'||busy||cpu.shot[i])return;shots++;lastShot.me=i;const r=fire(cpu,i),c=BW/N;
+ if(r.hit){hitsN++;boom();burst(i,c,'#ffa300');setStatus(r.sunk?`YOU SANK THE ${r.sunk.n}!`:'HIT!','#ffa300')}else{splash();burst(i,c,'#c2c3c7',8);setStatus('MISS','#9a8fb0')}
+ fleetList();stat();if(allSunk(cpu))return finish(true);
+ turn='cpu';busy=true;$('bigLbl').textContent='ENEMY AIMING…';clearTimeout(cpuT);cpuT=setTimeout(cpuTurn,850)}
+function cpuTurn(){if(phase!=='battle'||turn!=='cpu')return;const i=aiPick(me,lvl);lastShot.cpu=i;const r=fire(me,i),col=String.fromCharCode(65+(i%N))+((i/N|0)+1);
+ if(r.hit){boom();setStatus((r.sunk?`THEY SANK YOUR ${r.sunk.n}`:`ENEMY HIT ${col}`)+'. YOUR SHOT','#ff004d');if(navigator.vibrate)try{navigator.vibrate(60)}catch(e){}}else{splash();setStatus(`ENEMY MISSED ${col}. YOUR SHOT`,'')}
+ if(allSunk(me))return finish(false);turn='me';busy=false;$('bigLbl').textContent='ENEMY WATERS'}
+function stat(){$('shots').textContent=shots?`${shots} shots · ${Math.round(hitsN/shots*100)}% hit`:''}
+const LV=['CADET','CAPTAIN','ADMIRAL'],pl=(n,w)=>n+' '+w+(n===1?'':'s');
+function finish(win){clearTimeout(cpuT);phase='end';busy=true;const all=store.get('bs_rec2')||{},rec=all[lvl]||{w:0,l:0,best:0};if(win){rec.w++;rec.best=rec.best?Math.min(rec.best,shots):shots}else rec.l++;all[lvl]=rec;store.set('bs_rec2',all);if(win&&window.ARC)ARC.submit('fleet',[150,300,600][lvl]+Math.max(0,100-shots)*6,LV[lvl]+' · '+shots+' shots',{win:1,lvl,shots});store.set('bs_rec',Object.values(all).reduce((a,r)=>({w:a.w+r.w,l:a.l+r.l,best:r.best&&(!a.best||r.best<a.best)?r.best:a.best}),{w:0,l:0,best:0}));
+ for(const s of cpu.ships)s.reveal=1;
+ setTimeout(()=>{$('endT').textContent=win?'VICTORY':'FLEET LOST';$('endP').textContent=(win?`You won in ${shots} shots (${Math.round(hitsN/shots*100)}% accuracy).`:`The enemy found all your ships. You sank ${cpu.ships.filter(s=>s.hits>=s.len).length} of theirs.`)+` vs ${LV[lvl]}: ${pl(rec.w,'win')}, ${pl(rec.l,'loss').replace('losss','losses')}${rec.best?`, best ${rec.best} shots`:''}.`;
+  (win?[523,659,784,1046]:[392,311,233]).forEach((f,k)=>setTimeout(()=>beep(f,.18),k*120));$('end').classList.add('on')},900)}
+function startPlace(){started=true;clearTimeout(cpuT);kc=-1;phase='place';me=newBoard(randomFleet());cpu=newBoard(randomFleet());sel=null;turn='me';busy=false;shots=0;hitsN=0;lastShot={me:-1,cpu:-1};
+ $('ctrl').style.display='flex';$('bigLbl').textContent='YOUR WATERS';$('shots').textContent='';setStatus('PLACE YOUR FLEET');$('go').textContent='START BATTLE';
+ for(const o of document.querySelectorAll('.ov'))o.classList.remove('on');layout();placeHelp()}
+function placeHelp(){$('shots').textContent=sel?`${sel.n} selected`:'';setStatus(sel?'TAP A SQUARE TO MOVE IT. TAP THE SHIP AGAIN TO ROTATE':'TAP A SHIP TO MOVE IT, OR SHUFFLE',sel?'#ffec27':'')}
+function startBattle(){phase='battle';sel=null;$('ctrl').style.display='none';$('bigLbl').textContent='ENEMY WATERS';fleetList();layout();beep(660,.1);
+ if(Math.random()<.5){setStatus('COIN TOSS: YOU FIRE FIRST. TAP THE ENEMY GRID','#ffec27')}else{setStatus('COIN TOSS: THE ENEMY FIRES FIRST','#ff004d');$('bigLbl').textContent='ENEMY AIMING…';turn='cpu';busy=true;clearTimeout(cpuT);cpuT=setTimeout(cpuTurn,1300)}}
+big.addEventListener('pointerdown',e=>{kc=-1;const r=big.getBoundingClientRect(),c=BW/N,x=Math.floor((e.clientX-r.left-GU)/c),y=Math.floor((e.clientY-r.top-GU)/c);if(x<0||y<0||x>=N||y>=N)return;
+ if(phase==='battle')return playerShot(x+y*N);
+ if(phase!=='place')return;const hitShip=shipAt(me.ships,x,y);
+ if(hitShip&&hitShip!==sel){sel=hitShip;beep(500,.04);return placeHelp()}
+ if(hitShip&&hitShip===sel){rotateSel();return}
+ if(sel){let tryS=null,bd=1e9;for(let oy=-4;oy<=4;oy++)for(let ox=-4;ox<=4;ox++){const u={...sel,x:x+ox,y:y+oy};const cs=cellsOf(u);if(!fits(me.ships,u,sel))continue;const d=Math.min(...cs.map(([a,b])=>Math.abs(a-x)+Math.abs(b-y)))*10+Math.abs(ox)+Math.abs(oy);if(d<bd){bd=d;tryS=u}}
+  if(tryS){sel.x=tryS.x;sel.y=tryS.y;beep(400,.05);sel=null;placeHelp()}else{beep(110,.1);setStatus('NO ROOM THERE','#ff004d')}}});
+function rotateSel(){if(!sel){setStatus('TAP A SHIP FIRST','#ff004d');return}const t={...sel,h:!sel.h};
+ for(const[dx,dy]of[[0,0],[-1,0],[0,-1],[-2,0],[0,-2],[-3,0],[0,-3],[-4,0],[0,-4]]){const u={...t,x:t.x+dx,y:t.y+dy};if(fits(me.ships,u,sel)){Object.assign(sel,{h:u.h,x:u.x,y:u.y});beep(600,.04);return placeHelp()}}
+ beep(110,.1);setStatus('NO ROOM TO ROTATE','#ff004d')}
+$('rot').addEventListener('click',rotateSel);
+addEventListener('keydown',e=>{if([...document.querySelectorAll('.ov')].some(o=>o.classList.contains('on'))||e.target.closest&&e.target.closest('button'))return;if(phase==='place'&&(e.key==='r'||e.key==='R'))return rotateSel();if(phase!=='battle')return;const D={ArrowUp:-N,ArrowDown:N,ArrowLeft:-1,ArrowRight:1}[e.key];if(D){e.preventDefault();if(kc<0)kc=44;const n=kc+D;if(n>=0&&n<N*N&&!(D===1&&n%N===0)&&!(D===-1&&kc%N===0))kc=n}if((e.key==='Enter'||e.key===' ')&&kc>=0){e.preventDefault();playerShot(kc)}});
+$('shuf').addEventListener('click',()=>{me=newBoard(randomFleet());sel=null;placeHelp();beep(300,.05)});
+$('go').addEventListener('click',startBattle);
+for(const b of document.querySelectorAll('[data-lvl]'))b.addEventListener('click',()=>{lvl=+b.dataset.lvl;startPlace()});
+$('again').addEventListener('click',startPlace);
+const menu=()=>{const all=store.get('bs_rec2')||{};$('rec').innerHTML=LV.map((n,i)=>all[i]?`${n}: ${all[i].w}W ${all[i].l}L${all[i].best?' · best '+all[i].best:''}`:'').filter(Boolean).join('<br>');$('resume').style.display=started&&(phase==='battle'||phase==='place')?'':'none';$('end').classList.remove('on');$('start').classList.add('on')};
+$('resume').addEventListener('click',()=>$('start').classList.remove('on'));
+$('toMenu').addEventListener('click',menu);$('menuBtn').addEventListener('click',menu);
+addEventListener('resize',layout);
+me=newBoard(randomFleet());cpu=newBoard(randomFleet());layout();menu();
+let t=0;(function loop(){requestAnimationFrame(loop);t++;draw(t)})();
+addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
+window.__b={get me(){return me},get cpu(){return cpu},aiPick,fire,allSunk,randomFleet,newBoard,get phase(){return phase}};
+}
+</script>
+</body>
+</html>

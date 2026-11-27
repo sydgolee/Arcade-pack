@@ -1,0 +1,77 @@
+/* Shared look for the launcher and info pages: an arcade cabinet menu.
+   Near-black purple, one bright colour per game, Press Start 2P for labels, VT323 for reading. */
+:root{color-scheme:dark;--bg:#0b0a12;--stone:#17151f;--line:#2a2535;--ink:#fff1e8;--body:#d8cfe6;--dim:#9a8fb0;--gold:#ffec27;--blue:#29adff;--green:#00e436;--red:#ff004d}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:20px/1.25 "VT323",ui-monospace,monospace;background:radial-gradient(ellipse at 50% 0%,#2a1d3a 0,#0b0a12 60%) fixed;min-height:100vh;padding:max(12px,env(safe-area-inset-top)) 14px calc(96px + env(safe-area-inset-bottom))}
+a{color:var(--blue)}
+a:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.wrap{max-width:980px;margin:0 auto}
+.read{max-width:680px;margin:0 auto}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:980px;margin:0 auto 4px;min-height:44px}
+.top .back{font:10px "Press Start 2P",monospace;color:var(--dim);text-decoration:none;display:inline-flex;align-items:center;min-height:44px;padding-right:10px}
+.chip{font:9px/1.4 "Press Start 2P",monospace;background:var(--stone);border:2px solid var(--line);color:var(--ink);padding:8px 10px;min-height:40px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;text-decoration:none}
+.chip i{font-style:normal;color:var(--gold)}
+h1{font:clamp(18px,5.6vw,38px)/1.3 "Press Start 2P",monospace;color:var(--gold);text-shadow:4px 4px 0 #7e2553;text-align:center;margin:14px 0 6px;text-wrap:balance}
+h2{font:13px/1.6 "Press Start 2P",monospace;color:var(--gold);margin:28px 0 8px}
+h3{font:10px/1.6 "Press Start 2P",monospace;color:var(--blue);margin:20px 0 6px}
+p,li{color:var(--body)}
+.sub{text-align:center;color:var(--dim);margin:0 0 20px}
+.panel{background:var(--stone);border:3px solid var(--line);box-shadow:0 7px 0 #000;padding:16px}
+.btn{font:11px/1.4 "Press Start 2P",monospace;background:var(--gold);color:#000;border:0;box-shadow:0 5px 0 #ab5236;padding:12px 14px;min-height:44px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 #ab5236}
+.btn.ghost{background:#2a2535;color:var(--ink);box-shadow:0 5px 0 #000}
+.muted{color:var(--dim)}
+.tag{font:8px "Press Start 2P",monospace;padding:3px 5px;background:var(--line);color:var(--dim);vertical-align:middle}
+
+/* bottom tab bar */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#0b0a12;border-top:3px solid var(--line);display:flex;justify-content:center;padding:0 4px env(safe-area-inset-bottom)}
+.tabs a{flex:1;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 2px 9px;text-decoration:none;color:var(--dim);font:8px/1 "Press Start 2P",monospace;min-height:60px;justify-content:center}
+.tabs a svg{width:22px;height:22px;shape-rendering:crispEdges}
+.tabs a[aria-current=page]{color:var(--gold);background:var(--stone)}
+
+/* cartridges */
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr))}
+a.cart{display:flex;gap:14px;align-items:center;text-decoration:none;color:var(--ink);background:var(--stone);border:3px solid var(--c);box-shadow:0 7px 0 #000;padding:14px;position:relative}
+a.cart:active{transform:translateY(5px);box-shadow:0 2px 0 #000}
+a.cart canvas{flex:none;width:72px;height:72px;image-rendering:pixelated;background:#000;border:2px solid #000}
+.cart b{display:block;font:13px/1.5 "Press Start 2P",monospace;color:var(--c);margin-bottom:6px}
+.cart span{display:block;font-size:17px;line-height:1.1;color:var(--body)}
+.cart em{display:block;font-style:normal;color:var(--dim);font-size:17px;margin-top:6px}
+.cart .n{display:block;line-height:1.2;color:#000;position:absolute;top:-11px;right:10px;font:10px "Press Start 2P",monospace;background:var(--c);color:#000;padding:4px 6px}
+
+/* score table */
+.seg{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.seg button{font:9px/1.4 "Press Start 2P",monospace;background:var(--stone);color:var(--dim);border:2px solid var(--line);padding:8px 10px;min-height:42px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--c,var(--gold));color:#000;border-color:var(--c,var(--gold))}
+table.lb{width:100%;border-collapse:collapse}
+table.lb td,table.lb th{padding:9px 6px;border-bottom:2px dashed var(--line);text-align:left;vertical-align:baseline}
+table.lb th{font:8px "Press Start 2P",monospace;color:var(--dim);font-weight:400}
+table.lb td.r{font:11px "Press Start 2P",monospace;color:var(--dim);width:44px}
+table.lb tr:nth-child(1) td.r{color:var(--gold)}table.lb tr:nth-child(2) td.r{color:#c2c3c7}table.lb tr:nth-child(3) td.r{color:#ffa300}
+table.lb td.s{text-align:right;color:var(--gold);font:11px "Press Start 2P",monospace;white-space:nowrap}
+table.lb td small{display:block;color:var(--dim);font-size:16px}
+
+/* awards */
+.aw{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr))}
+.award{display:flex;gap:12px;align-items:center;background:var(--stone);border:3px solid var(--line);padding:12px}
+.award .ico{flex:none;width:40px;height:40px;display:grid;place-items:center;font:16px "Press Start 2P",monospace;background:#000;color:#3a3445;border:2px solid var(--line)}
+.award b{display:block;font:9px/1.5 "Press Start 2P",monospace;color:var(--dim)}
+.award span{display:block;font-size:17px;line-height:1.1;color:var(--dim)}
+.award.got{border-color:var(--gold)}.award.got .ico{color:var(--gold);border-color:var(--gold)}.award.got b{color:var(--gold)}.award.got span{color:var(--body)}
+.stats{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(min(100%,140px),1fr))}
+.stat{background:var(--stone);border:3px solid var(--line);padding:12px;text-align:center}
+.stat b{display:block;font:14px/1.5 "Press Start 2P",monospace;color:var(--gold)}
+.stat span{color:var(--dim);font-size:17px}
+
+/* boot screen */
+#boot[hidden]{display:none}
+#boot{position:fixed;inset:0;z-index:100;background:#0b0a12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;cursor:pointer;text-align:center;padding:20px}
+#boot .logo{font:clamp(20px,7vw,46px)/1.3 "Press Start 2P",monospace;color:var(--gold);text-shadow:4px 4px 0 #7e2553}
+#boot .press{font:12px "Press Start 2P",monospace;color:var(--ink);animation:blink 1s steps(2) infinite}
+#boot .credit{color:var(--dim)}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){#boot .press{animation:none}}
+.foot{text-align:center;color:var(--dim);margin:34px 0 10px;font-size:18px}
+.foot a{color:var(--dim);display:inline-block;padding:8px 6px;min-height:40px}
+.notice{border-color:var(--blue)}

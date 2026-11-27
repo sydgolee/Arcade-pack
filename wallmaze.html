@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Wall Maze</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="arcade.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0a12">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
+<style>
+/* VOICE: a quiet strategy duel on a pixel board
+   IDEA: wooden board of the original game, rendered as 8-bit tiles
+   PICTURE: the board itself fills the screen
+   COLOUR and TYPE: walnut board, blue vs red pawns, gold walls; Press Start 2P + VT323
+   LAYOUT: top bar, wall counters, board, action buttons */
+:root{color-scheme:dark;--bg:#0b0a12;--stone:#17151f;--ink:#fff1e8;--dim:#9a8fb0;--gold:#ffec27;--red:#ff004d;--blue:#29adff;--wood:#ab5236}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden}
+body{font:20px/1.15 "VT323",ui-monospace,monospace;user-select:none;-webkit-user-select:none;touch-action:manipulation;background:radial-gradient(ellipse at 50% 30%,#1d1a2c 0,#0b0a12 70%)}
+.px{font-family:"Press Start 2P",ui-monospace,monospace}
+#app{display:flex;flex-direction:column;align-items:center;height:100%;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));gap:8px}
+#top{width:var(--bw);display:flex;align-items:center;gap:8px;font-size:10px}
+#top a{color:var(--dim);text-decoration:none;font-size:10px;padding:14px 4px;min-height:44px}
+#turn{flex:1;text-align:center;color:var(--gold)}
+.side{width:var(--bw);display:flex;align-items:center;justify-content:space-between;font-size:18px}
+.walls{display:flex;gap:3px}.walls i{width:6px;height:18px;background:var(--gold);display:block}.walls i.u{background:#2a2535}
+.who{font:11px "Press Start 2P",monospace}.who.p0{color:var(--blue)}.who.p1{color:var(--red)}
+canvas{display:block;touch-action:none}
+#ctrl{width:var(--bw);display:flex;gap:8px}
+@media (min-height:700px){#ctrl .btn{min-height:58px}}
+.btn{font:11px "Press Start 2P",monospace;background:var(--gold);color:#000;border:0;padding:12px 10px;box-shadow:0 5px 0 #ab5236;cursor:pointer;min-height:46px;flex:1}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 #ab5236}
+.btn.ghost{background:var(--stone);color:var(--ink);box-shadow:0 5px 0 #000}
+.btn.on{background:var(--blue);box-shadow:0 5px 0 #1d2b53;color:#000}
+.btn:disabled{opacity:.35}
+.btn:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+#msg{width:var(--bw);min-height:44px;color:var(--dim);text-align:center}
+.ov{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:flex-start;background:rgba(11,10,18,.97);text-align:center;padding:20px 16px;overflow:auto;z-index:5}
+.ov.on{display:flex}.ov>:first-child{margin-top:auto}.ov>:last-child{margin-bottom:auto}
+.ov h1{font:clamp(20px,6vw,32px)/1.35 "Press Start 2P",monospace;color:var(--gold);text-shadow:4px 4px 0 #ab5236;margin:0 0 12px}
+.ov p{max-width:440px;margin:6px 0}
+.ov .btn{flex:none;width:260px;margin:6px}
+.muted{color:var(--dim)}
+.seg{display:flex;gap:6px;margin:6px 0}.seg .btn{width:auto;padding:12px 10px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top" class="px"><a href="index.html">◀ PACK</a><span id="turn"></span><button class="btn ghost" id="menuBtn" style="flex:none;min-height:44px;min-width:44px;padding:8px" aria-label="Menu">≡</button></div>
+  <div class="side"><span class="who p1" id="n1">CPU</span><span id="d1" class="muted"></span><div class="walls" id="w1"></div></div>
+  <canvas id="cv" aria-label="Wall Maze board"></canvas>
+  <div class="side"><span class="who p0" id="n0">YOU</span><span id="d0" class="muted"></span><div class="walls" id="w0"></div></div>
+  <div id="ctrl">
+    <button class="btn on" id="mMove">MOVE</button>
+    <button class="btn ghost" id="mWall">WALL</button>
+    <button class="btn ghost" id="rot" aria-label="Rotate wall">⟲ ─</button>
+    <button class="btn ghost" id="undo">UNDO</button>
+  </div>
+  <div id="msg">Tap a glowing square to move.</div>
+</div>
+
+<div class="ov on" id="start">
+  <a href="index.html" class="btn ghost" style="flex:none;min-height:44px;width:auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center">◀ BACK TO PACK</a>
+  <h1>WALL MAZE</h1>
+  <p>Race your pawn to the far side. On your turn, move one step or place a wall to slow your rival.</p>
+  <p class="muted">Each player has 10 walls. A wall can never close off someone's last route.</p>
+  <p class="px" style="font-size:10px;margin-top:14px">VS CPU</p>
+  <div class="seg"><button class="btn" data-lvl="0">EASY</button><button class="btn" data-lvl="1">NORMAL</button><button class="btn" data-lvl="2">HARD</button></div>
+  <button class="btn ghost" id="pvp">2 PLAYERS</button>
+  <div id="midGame" style="display:none"><button class="btn" id="resume">RESUME</button><button class="btn ghost" id="forfeit">FORFEIT (COUNTS AS A LOSS)</button></div>
+  <p class="muted" id="rec"></p>
+  <p class="muted" style="font-size:16px">Starting a new game or forfeiting mid-game against the CPU counts as a loss. Wins after an undo are not counted.</p>
+</div>
+
+<div class="ov" id="end">
+  <h1 id="endT">YOU WIN</h1>
+  <p id="endP"></p>
+  <button class="btn" id="again">PLAY AGAIN</button>
+  <button class="btn ghost" id="toMenu">MENU</button>
+</div>
+
+<script>
+{
+const $=id=>document.getElementById(id),N=9;
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let ac=null;function beep(f,d=.08,type='square',v=.04,sl=0){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+sl),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+
+/* ---------- rules ---------- */
+const DIRS=[[0,-1],[1,0],[0,1],[-1,0]];
+const inB=(x,y)=>x>=0&&y>=0&&x<N&&y<N;
+const wi=(x,y)=>y*8+x;
+function blocked(s,x,y,nx,ny){
+ if(nx===x){const top=Math.min(y,ny);return(x<8&&s.hw[wi(x,top)])||(x>0&&s.hw[wi(x-1,top)])}
+ const left=Math.min(x,nx);return(y<8&&s.vw[wi(left,y)])||(y>0&&s.vw[wi(left,y-1)])}
+const goalY=pi=>pi===0?0:8;
+function dist(s,pi,parent){const[sx,sy]=s.pos[pi],g=goalY(pi),seen=new Int16Array(81).fill(-1),q=[sx+sy*N];seen[sx+sy*N]=0;
+ if(parent)parent.fill(-1);
+ for(let h=0;h<q.length;h++){const c=q[h],x=c%N,y=c/N|0;if(y===g)return seen[c];
+  for(const[dx,dy]of DIRS){const nx=x+dx,ny=y+dy;if(!inB(nx,ny))continue;const n=nx+ny*N;if(seen[n]>=0||blocked(s,x,y,nx,ny))continue;seen[n]=seen[c]+1;if(parent)parent[n]=c;q.push(n)}}
+ return 999}
+function pathCells(s,pi){const par=new Int16Array(81);const d=dist(s,pi,par);if(d>=999)return[];
+ const[sx,sy]=s.pos[pi],g=goalY(pi);let end=-1;
+ // find a goal cell reached at distance d by re-running BFS order
+ const seen=new Int16Array(81).fill(-1),q=[sx+sy*N];seen[q[0]]=0;
+ for(let h=0;h<q.length;h++){const c=q[h],x=c%N,y=c/N|0;if(y===g){end=c;break}
+  for(const[dx,dy]of DIRS){const nx=x+dx,ny=y+dy;if(!inB(nx,ny))continue;const n=nx+ny*N;if(seen[n]>=0||blocked(s,x,y,nx,ny))continue;seen[n]=1;par[n]=c;q.push(n)}}
+ const out=[];for(let c=end;c>=0&&c!==sx+sy*N;c=par[c])out.push(c);out.push(sx+sy*N);return out.reverse()}
+function pawnMoves(s,pi){const[x,y]=s.pos[pi],[ox,oy]=s.pos[1-pi],out=[];
+ for(const[dx,dy]of DIRS){const nx=x+dx,ny=y+dy;if(!inB(nx,ny)||blocked(s,x,y,nx,ny))continue;
+  if(nx===ox&&ny===oy){const jx=ox+dx,jy=oy+dy;
+   if(inB(jx,jy)&&!blocked(s,ox,oy,jx,jy))out.push([jx,jy]);
+   else for(const[px,py]of dx?[[0,-1],[0,1]]:[[-1,0],[1,0]]){const sx=ox+px,sy=oy+py;if(inB(sx,sy)&&!blocked(s,ox,oy,sx,sy))out.push([sx,sy])}}
+  else out.push([nx,ny])}
+ return out}
+function wallFits(s,o,x,y){if(x<0||y<0||x>7||y>7)return false;const k=wi(x,y);
+ if(o==='h'){if(s.hw[k]||s.vw[k])return false;if(x>0&&s.hw[wi(x-1,y)])return false;if(x<7&&s.hw[wi(x+1,y)])return false}
+ else{if(s.vw[k]||s.hw[k])return false;if(y>0&&s.vw[wi(x,y-1)])return false;if(y<7&&s.vw[wi(x,y+1)])return false}
+ return true}
+function canWall(s,pi,o,x,y){if(s.walls[pi]<=0||!wallFits(s,o,x,y))return false;const arr=o==='h'?s.hw:s.vw,k=wi(x,y);arr[k]=1;const ok=dist(s,0)<999&&dist(s,1)<999;arr[k]=0;return ok}
+const clone=s=>({pos:[s.pos[0].slice(),s.pos[1].slice()],walls:s.walls.slice(),hw:s.hw.slice(),vw:s.vw.slice(),turn:s.turn});
+function apply(s,m){const n=clone(s),pi=n.turn;if(m.t==='p')n.pos[pi]=[m.x,m.y];else{(m.o==='h'?n.hw:n.vw)[wi(m.x,m.y)]=1;n.walls[pi]--}n.turn=1-pi;return n}
+const winner=s=>s.pos[0][1]===0?0:s.pos[1][1]===8?1:-1;
+
+/* ---------- CPU ---------- */
+function wallCandidates(s,pi,root){const opp=1-pi,set=new Map(),src=[[pathCells(s,opp),!root&&s.walls[0]>7&&s.walls[1]>7?3:6]];if(root)src.push([pathCells(s,pi),2]);
+ for(const[cells,lim]of src)for(let i=0;i+1<cells.length&&i<=lim;i++){const a=cells[i],b=cells[i+1],ax=a%N,ay=a/N|0,bx=b%N,by=b/N|0;
+  if(ax===bx){const ty=Math.min(ay,by);for(const x of[ax-1,ax])set.set('h'+x+','+ty,{t:'w',o:'h',x,y:ty})}
+  else{const lx=Math.min(ax,bx);for(const y of[ay-1,ay])set.set('v'+lx+','+y,{t:'w',o:'v',x:lx,y})}
+  }
+ return[...set.values()].filter(m=>canWall(s,pi,m.o,m.x,m.y))}
+function evalS(s,me){const w=winner(s);if(w===me)return 1e4;if(w===1-me)return-1e4;
+ const dm=dist(s,me),dopp=dist(s,1-me);const lead=dopp-dm+(s.turn===me?.5:-.5);return lead*10+(s.walls[me]-s.walls[1-me])*(lead>0?1.2:.3)+(dm<=2?-3*s.walls[1-me]*.0:0)}
+function genMoves(s,root){const pi=s.turn,ms=pawnMoves(s,pi).map(([x,y])=>({t:'p',x,y}));if(s.walls[pi]>0)ms.push(...wallCandidates(s,pi,root));return ms}
+function search(s,depth,me,a,b){const w=winner(s);if(depth===0||w>=0)return evalS(s,me);
+ const ms=genMoves(s);if(s.turn===me){let best=-1e9;for(const m of ms){best=Math.max(best,search(apply(s,m),depth-1,me,a,b));a=Math.max(a,best);if(a>=b)break}return best}
+ let best=1e9;for(const m of ms){best=Math.min(best,search(apply(s,m),depth-1,me,a,b));b=Math.min(b,best);if(a>=b)break}return best}
+function cpuMove(s,lvl){const me=s.turn;let ms=genMoves(s,true);
+ if(lvl===0){const pm=ms.filter(m=>m.t==='p');ms=Math.random()<.75?pm:ms;
+  const sc=ms.map(m=>evalS(apply(s,m),me)+Math.random()*14);return ms[sc.indexOf(Math.max(...sc))]}
+ const depth=lvl===1?2:3,noise=lvl===1?7:.3;let best=null,bv=-1e9;
+ const dOpp=dist(s,1-me);
+ for(const m of ms){let v=search(apply(s,m),depth-1,me,-1e9,1e9)+(m.t==='p'?.5:0)+Math.random()*noise;
+  if(m.t==='w'&&s.walls[me]>2&&dOpp>(lvl===1?4:6))v-=lvl===1?9:3;
+  if(m.t==='p'&&recent[me]&&recent[me].slice(-4).includes(m.x+','+m.y))v-=7;if(v>bv){bv=v;best=m}}
+ return best}
+
+/* ---------- game state + UI ---------- */
+let S=null,hist=[],mode='move',ori='h',lvl=1,pvp=false,ghost=null,busy=false,lastWall=null,cpuT=0,undoUsed=false,lastPawn=null,anim=null,recent=[[],[]],started=false;
+const cv=$('cv'),g=cv.getContext('2d');let C=40,Gp=9,BW=0,dpr=1;
+function layout(){const aw=Math.min(innerWidth-16,620),ah=innerHeight-215;BW=Math.floor(Math.min(aw,ah));
+ C=Math.floor(BW/(9+8*.24));Gp=Math.floor(C*.24);BW=9*C+8*Gp;dpr=Math.min(3,devicePixelRatio||1);
+ cv.width=BW*dpr;cv.height=BW*dpr;cv.style.width=BW+'px';cv.style.height=BW+'px';document.documentElement.style.setProperty('--bw',BW+'px');draw()}
+const cx=x=>x*(C+Gp);
+function draw(){if(!S)return;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#3a1a14';g.fillRect(0,0,BW,BW);
+ const pm=!busy&&isHumanTurn()&&mode==='move'?pawnMoves(S,S.turn):[];
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++){const X=cx(x),Y=cx(y),goal=(y===0)||(y===8);
+  g.fillStyle=(x+y)%2?'#7a3b22':'#93502e';g.fillRect(X,Y,C,C);
+  if(goal){g.fillStyle=y===0?'rgba(41,173,255,.22)':'rgba(255,0,77,.22)';g.fillRect(X,Y,C,C)}
+  g.fillStyle='rgba(0,0,0,.25)';g.fillRect(X,Y+C-3,C,3)}
+ g.font=`${Math.max(7,Math.round(C*.17))}px "Press Start 2P",monospace`;g.textAlign='center';g.textBaseline='middle';
+ g.fillStyle='rgba(41,173,255,.5)';g.fillText(pvp?'BLUE GOAL':'YOUR GOAL',BW/2,cx(0)+C*.82);g.fillStyle='rgba(255,0,77,.5)';g.fillText(pvp?'RED GOAL':'CPU GOAL',BW/2,cx(8)+C*.18);
+ for(const[x,y]of pm){g.fillStyle='rgba(255,236,39,.35)';g.fillRect(cx(x)+3,cx(y)+3,C-6,C-6);g.strokeStyle='#ffec27';g.lineWidth=2;g.strokeRect(cx(x)+3,cx(y)+3,C-6,C-6)}
+ const wall=(o,x,y,col,a=1)=>{g.globalAlpha=a;g.fillStyle=col;if(o==='h')g.fillRect(cx(x),cx(y)+C,2*C+Gp,Gp);else g.fillRect(cx(x)+C,cx(y),Gp,2*C+Gp);
+  g.fillStyle='rgba(255,255,255,.35)';if(o==='h')g.fillRect(cx(x),cx(y)+C,2*C+Gp,2);else g.fillRect(cx(x)+C,cx(y),2,2*C+Gp);g.globalAlpha=1};
+ for(let y=0;y<8;y++)for(let x=0;x<8;x++){if(S.hw[wi(x,y)])wall('h',x,y,lastWall&&lastWall.o==='h'&&lastWall.x===x&&lastWall.y===y?'#fff1e8':'#ffec27');if(S.vw[wi(x,y)])wall('v',x,y,lastWall&&lastWall.o==='v'&&lastWall.x===x&&lastWall.y===y?'#fff1e8':'#ffec27')}
+ if(ghost){const ok=canWall(S,S.turn,ghost.o,ghost.x,ghost.y);wall(ghost.o,ghost.x,ghost.y,ok?'#29adff':'#ff004d',.75)}
+ if(lastPawn){const[fx,fy]=lastPawn.from;g.strokeStyle=lastPawn.pi===0?'rgba(41,173,255,.8)':'rgba(255,0,77,.8)';g.setLineDash([4,3]);g.lineWidth=2;g.strokeRect(cx(fx)+4,cx(fy)+4,C-8,C-8);g.setLineDash([])}
+ const pawn=(pi)=>{let[x,y]=S.pos[pi];if(anim&&anim.pi===pi){const k=Math.min(1,(performance.now()-anim.t0)/160);x=anim.from[0]+(anim.to[0]-anim.from[0])*k;y=anim.from[1]+(anim.to[1]-anim.from[1])*k;if(k<1)requestAnimationFrame(draw);else anim=null}
+  const X=cx(x)+C/2,Y=cx(y)+C/2,r=C*.34;
+  g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(X,Y+r*.8,r,r*.35,0,0,7);g.fill();
+  g.fillStyle=pi===0?'#29adff':'#ff004d';g.beginPath();g.arc(X,Y,r,0,7);g.fill();
+  g.fillStyle=pi===0?'#c2f0ff':'#ffb3c8';g.beginPath();g.arc(X-r*.3,Y-r*.3,r*.3,0,7);g.fill();
+  if(S.turn===pi&&winner(S)<0){g.strokeStyle='#fff1e8';g.lineWidth=2;g.beginPath();g.arc(X,Y,r+4,0,7);g.stroke()}};
+ pawn(0);pawn(1)}
+function isHumanTurn(){return pvp||S.turn===0}
+function ui(){const w=winner(S);
+ for(const pi of[0,1]){$('w'+pi).innerHTML=Array.from({length:10},(_,i)=>`<i class="${i<S.walls[pi]?'':'u'}"></i>`).join('');$('d'+pi).textContent=dist(S,pi)+' steps to go'}
+ $('n1').textContent=pvp?'PLAYER 2':'CPU';$('n0').textContent=pvp?'PLAYER 1':'YOU';
+ $('turn').textContent=w>=0?'GAME OVER':busy?'CPU THINKING…':pvp?(S.turn===0?'BLUE TO PLAY':'RED TO PLAY'):'YOUR TURN';
+ $('mMove').classList.toggle('on',mode==='move');$('mMove').classList.toggle('ghost',mode!=='move');
+ $('mWall').classList.toggle('on',mode==='wall');$('mWall').classList.toggle('ghost',mode!=='wall');
+ $('mWall').disabled=S.walls[S.turn]<=0||!isHumanTurn()||busy;$('rot').disabled=$('mWall').disabled;$('rot').textContent=ori==='h'?'⟲ ─':'⟲ │';
+ $('undo').disabled=!hist.length||busy;
+ $('msg').textContent=w>=0?'':busy?'':mode==='move'?'Tap a glowing square to move.':ghost?(canWall(S,S.turn,ghost.o,ghost.x,ghost.y)?'Tap the blue wall again to place it, or tap elsewhere to move it.':'That wall overlaps or seals a route. Try another spot.'):'Tap between squares to preview a wall. ⟲ turns it.';
+ draw()}
+function commit(m){started=true;hist.push(clone(S));if(hist.length>60)hist.shift();lastWall=m.t==='w'?m:null;if(m.t==='p'){const from=S.pos[S.turn].slice();lastPawn={pi:S.turn,from};anim={pi:S.turn,from,to:[m.x,m.y],t0:performance.now()};recent[S.turn].push(from.join(','));if(recent[S.turn].length>6)recent[S.turn].shift()}S=apply(S,m);ghost=null;
+ m.t==='p'?beep(520,.06,'triangle',.05,120):beep(160,.12,'square',.05,-40);
+ if(S.walls[S.turn]<=0&&mode==='wall')mode='move';
+ const w=winner(S);ui();if(w>=0)return finish(w);
+ if(!pvp&&S.turn===1){busy=true;ui();const snap=S;clearTimeout(cpuT);cpuT=setTimeout(function go(){if(S!==snap)return;if($('start').classList.contains('on')){cpuT=setTimeout(go,300);return}const cm=cpuMove(S,lvl);busy=false;commit(cm)},420)}
+ else if(pvp){mode='move'}ui()}
+function finish(w){const rec=store.get('quor_rec')||{w:0,l:0};
+ if(!pvp){if(w===0&&!undoUsed)rec.w++;else if(w!==0)rec.l++;store.set('quor_rec',rec)}if(window.ARC&&!pvp&&w===0&&!undoUsed)ARC.submit('wallmaze',[150,300,600][lvl]+S.walls[0]*30,['EASY','NORMAL','HARD'][lvl]+' · '+S.walls[0]+' walls left',{win:1,lvl});
+ setTimeout(()=>{$('endT').textContent=pvp?(w===0?'BLUE WINS':'RED WINS'):(w===0?'YOU WIN':'CPU WINS');
+  $('endP').textContent=pvp?'':(w===0&&undoUsed?'You used undo, so this win is not counted. ':'')+`Record vs CPU: ${rec.w} win${rec.w===1?'':'s'}, ${rec.l} loss${rec.l===1?'':'es'}.`;
+  w===0||pvp?[523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,.15),i*110)):[392,311,233].forEach((f,i)=>setTimeout(()=>beep(f,.2),i*140));
+  $('end').classList.add('on')},500)}
+function newGame(){clearTimeout(cpuT);S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(64),vw:new Uint8Array(64),turn:0};hist=[];mode='move';ghost=null;busy=false;lastWall=null;lastPawn=null;anim=null;recent=[[],[]];undoUsed=false;started=false;
+ for(const o of document.querySelectorAll('.ov'))o.classList.remove('on');layout();ui()}
+cv.addEventListener('pointerdown',e=>{if(!S||busy||!isHumanTurn()||winner(S)>=0)return;const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+ if(mode==='move'){const x=Math.floor(px/(C+Gp)),y=Math.floor(py/(C+Gp));if(pawnMoves(S,S.turn).some(([a,b])=>a===x&&b===y))commit({t:'p',x,y});else beep(110,.05)}
+ else{const x=Math.max(0,Math.min(7,Math.round((px-C-Gp/2)/(C+Gp)))),y=Math.max(0,Math.min(7,Math.round((py-C-Gp/2)/(C+Gp))));
+  if(ghost&&ghost.x===x&&ghost.y===y&&ghost.o===ori){if(canWall(S,S.turn,ori,x,y))commit({t:'w',o:ori,x,y});else beep(110,.1)}
+  else{ghost={o:ori,x,y};beep(300,.03);ui()}}});
+$('mMove').addEventListener('click',()=>{mode='move';ghost=null;ui()});
+$('mWall').addEventListener('click',()=>{mode='wall';ui()});
+$('rot').addEventListener('click',()=>{if($('rot').disabled){$('msg').textContent=S.walls[S.turn]<=0?'No walls left. Move your pawn.':'Wait for your turn.';return}ori=ori==='h'?'v':'h';if(ghost)ghost.o=ori;if(mode!=='wall')mode='wall';ui()});
+$('undo').addEventListener('click',()=>{if(!hist.length||busy)return;undoUsed=true;S=hist.pop();if(!pvp&&S.turn===1&&hist.length)S=hist.pop();ghost=null;lastWall=null;ui()});
+addEventListener('keydown',e=>{const D={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];if(D&&S&&!busy&&isHumanTurn()&&winner(S)<0){e.preventDefault();const[x,y]=S.pos[S.turn],opts=pawnMoves(S,S.turn).filter(([a,b])=>Math.sign(a-x)===D[0]||D[0]===0&&Math.sign(b-y)===D[1]);const m=opts.find(([a,b])=>(a-x)*D[0]+(b-y)*D[1]>0);if(m)commit({t:'p',x:m[0],y:m[1]});return}if(e.key==='r'||e.key==='R')$('rot').click();if(e.key==='w'||e.key==='W')$('mWall').click();if(e.key==='m'||e.key==='M')$('mMove').click()});
+const leave=()=>{if(!pvp&&inGame()){const r=store.get('quor_rec')||{w:0,l:0};r.l++;store.set('quor_rec',r)}};
+for(const b of document.querySelectorAll('[data-lvl]'))b.addEventListener('click',()=>{leave();lvl=+b.dataset.lvl;pvp=false;newGame()});
+$('pvp').addEventListener('click',()=>{leave();pvp=true;newGame()});
+$('again').addEventListener('click',newGame);
+const inGame=()=>started&&S&&winner(S)<0;
+const menu=()=>{$('midGame').style.display=inGame()?'':'none';const rec=store.get('quor_rec');$('rec').textContent=rec?`Record vs CPU: ${rec.w} win${rec.w===1?'':'s'}, ${rec.l} loss${rec.l===1?'':'es'}.`:'';$('end').classList.remove('on');$('start').classList.add('on')};
+$('resume').addEventListener('click',()=>{$('start').classList.remove('on');if(!pvp&&S.turn===1&&winner(S)<0&&!busy){busy=true;ui();const snap=S;clearTimeout(cpuT);cpuT=setTimeout(()=>{if(S!==snap)return;const cm=cpuMove(S,lvl);busy=false;commit(cm)},420)}});
+$('forfeit').addEventListener('click',()=>{clearTimeout(cpuT);busy=false;if(!pvp&&inGame()){const r=store.get('quor_rec')||{w:0,l:0};r.l++;store.set('quor_rec',r)}started=false;menu()});
+for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{},{capture:true});
+$('toMenu').addEventListener('click',menu);$('menuBtn').addEventListener('click',menu);
+addEventListener('resize',layout);
+S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(64),vw:new Uint8Array(64),turn:0};layout();ui();menu();
+addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
+window.__q={get S(){return S},cpuMove,apply,pawnMoves,canWall,dist,winner};
+}
+</script>
+</body>
+</html>
