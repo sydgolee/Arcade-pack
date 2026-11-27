@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Leaderboards · 8-Bit Arcade Pack</title>
-<meta name="description" content="Top 10 scores for every game in the 8-Bit Arcade Pack.">
+<meta name="description" content="World, country and device leaderboards for every game in the 8-Bit Arcade Pack.">
 <link href="fonts/fonts.css" rel="stylesheet">
 <link href="site.css" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest">
@@ -15,31 +15,46 @@
 </head>
 <body>
 <div class="top"><a class="back" href="index.html">◀ GAMES</a></div>
-
 <div class="read">
 <h1>LEADERBOARDS</h1>
-<p class="sub">Top 10 on this device. Pass the phone around.</p>
+<p class="sub" id="subl">Who's the best in the arcade?</p>
 <div class="seg" id="gs" role="group" aria-label="Game"></div>
-<div class="seg" id="ms" role="group" aria-label="Board" hidden></div>
+<div class="seg" id="ss" role="group" aria-label="Board"></div>
+<div class="seg" id="ms" role="group" aria-label="Mode" hidden></div>
 <div class="panel"><table class="lb"><thead><tr><th>#</th><th>PLAYER</th><th style="text-align:right">SCORE</th></tr></thead><tbody id="rows"></tbody></table></div>
 <p class="muted" id="how" style="margin-top:14px"></p>
+<h2>YOUR GAMES</h2>
+<div class="stats" id="rec"></div>
+<div class="panel" style="margin-top:12px"><table class="lb"><tbody id="hist"></tbody></table></div>
 </div>
 <script>
-const HOW={dungeon:'Score = rooms cleared, boss rooms and curses carried. The daily board resets every day.',wallmaze:'Wins vs the CPU only. Easy 150, Normal 300, Hard 600, plus 30 for every wall you never used. Wins after undo do not count.',fleet:'Wins only. Cadet 150, Captain 300, Admiral 600, plus 6 for every shot under 100.',cowboy:'Score = enemies, bosses and distance. Runs continued from a saloon save do not count.',gangster:'Score = enemies, bosses and distance. Runs continued from a hideout save do not count.',pool:'Wins vs the CPU only. Rookie 150, Hustler 300, Shark 600, plus 40 for every CPU ball left on the table.'};
-const ids=Object.keys(ARC.GAMES);let g=new URLSearchParams(location.search).get('g');if(!ARC.GAMES[g])g=ids[0];let mode='main';
+const HOW={dungeon:'Score = rooms cleared, boss rooms and curses carried. The daily board resets every day.',wallmaze:'Win vs the CPU: Easy 150, Normal 300, Hard 600, plus 30 for every wall you never used. A loss scores 10 for every step you got closer to your goal. Wins after undo score 0.',fleet:'Win: Cadet 150, Captain 300, Admiral 600, plus 6 for every shot under 100. A loss scores 8 for every hit you landed.',cowboy:'Score = enemies, bosses and distance. Runs continued from a saloon save do not count.',gangster:'Score = enemies, bosses and distance. Runs continued from a hideout save do not count.',pool:'Win vs the CPU: Rookie 150, Hustler 300, Shark 600, plus 40 for every CPU ball left. A loss scores 20 for every ball of yours you potted.'};
+const ids=Object.keys(ARC.GAMES),Q=new URLSearchParams(location.search);let g=Q.get('g');if(!ARC.GAMES[g])g=ids[0];let mode='main',scope=Q.get('s')||'world';if(!ARC.REMOTE.url)scope='device';
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-const gs=document.getElementById('gs'),ms=document.getElementById('ms');
-function draw(){
- gs.innerHTML=ids.map(k=>`<button type="button" data-g="${k}" aria-pressed="${k===g}" style="--c:${ARC.GAMES[k].c}">${ARC.GAMES[k].t}</button>`).join('');
- ms.hidden=g!=='dungeon';ms.innerHTML=`<button type="button" data-m="main" aria-pressed="${mode==='main'}">ALL TIME</button><button type="button" data-m="daily" aria-pressed="${mode!=='main'}">TODAY'S DAILY</button>`;
- const list=ARC.board(g,g==='dungeon'&&mode!=='main'?'daily-'+today():'main'),me=ARC.name();
- document.getElementById('rows').innerHTML=list.length?list.map((r,i)=>`<tr><td class="r">${i+1}</td><td>${ARC.esc(r.n||'???')}${r.n&&r.n===me?' <span class="tag">YOU</span>':''}<small>${ARC.esc(r.d||'')} · ${new Date(r.t).toLocaleDateString()}</small></td><td class="s">${r.s}</td></tr>`).join(''):`<tr><td colspan="3" class="muted" style="text-align:center;padding:26px 6px">No scores yet.<br><a href="${ARC.GAMES[g].f}">Play ${ARC.GAMES[g].t} ▶</a></td></tr>`;
- document.getElementById('how').textContent=HOW[g];
- history.replaceState(null,'','?g='+g);
+const flag=c=>c&&c.length===2&&c!=='XX'?String.fromCodePoint(...[...c.toUpperCase()].map(x=>127397+x.charCodeAt())):'';
+const $=id=>document.getElementById(id),E=ARC.esc;let reqN=0;
+function rowsHTML(list,me){return list.length?list.map((r,i)=>`<tr><td class="r">${i+1}</td><td>${r.c?flag(r.c)+' ':''}${E(r.n||'???')}${r.n&&r.n===me?' <span class="tag">YOU</span>':''}<small>${E(r.d||'')}${r.t?' · '+new Date(r.t).toLocaleDateString():''}</small></td><td class="s">${r.s}</td></tr>`).join(''):`<tr><td colspan="3" class="muted" style="text-align:center;padding:26px 6px">No scores yet. Be the first!<br><a href="${ARC.GAMES[g].f}">Play ${ARC.GAMES[g].t} ▶</a></td></tr>`}
+async function draw(){
+ const n=++reqN;
+ $('gs').innerHTML=ids.map(k=>`<button type="button" data-g="${k}" aria-pressed="${k===g}" style="--c:${ARC.GAMES[k].c}">${ARC.GAMES[k].t}</button>`).join('');
+ $('ss').innerHTML=(ARC.REMOTE.url?[['world','WORLD'],['country','MY COUNTRY'],['device','THIS DEVICE']]:[['device','THIS DEVICE']]).map(([k,t])=>`<button type="button" data-s="${k}" aria-pressed="${k===scope}">${t}</button>`).join('');
+ $('ms').hidden=g!=='dungeon';$('ms').innerHTML=`<button type="button" data-m="main" aria-pressed="${mode==='main'}">ALL TIME</button><button type="button" data-m="daily" aria-pressed="${mode!=='main'}">TODAY'S DAILY</button>`;
+ const m=g==='dungeon'&&mode!=='main'?'daily-'+today():'main',me=ARC.name(),rows=$('rows');
+ if(scope==='device'){rows.innerHTML=rowsHTML(ARC.board(g,m),me);$('subl').textContent='Top 10 on this device.'}
+ else{rows.innerHTML='<tr><td colspan="3" class="muted" style="text-align:center;padding:26px">Loading…</td></tr>';
+  try{const j=await ARC.remoteTop(g,m,scope,'all');if(n!==reqN)return;rows.innerHTML=rowsHTML(j.rows||[],me);$('subl').textContent=scope==='world'?'Best players in the world.':`Best players in ${flag(j.country)} ${j.countryName||j.country||'your country'}.`}
+  catch(e){if(n!==reqN)return;rows.innerHTML='<tr><td colspan="3" class="muted" style="text-align:center;padding:20px">Can\'t reach the online boards right now. Showing this device.</td></tr>'+rowsHTML(ARC.board(g,m),me)}}
+ $('how').textContent=HOW[g];
+ const r=ARC.record(g),h=ARC.history(g),win=['wallmaze','fleet','pool'].includes(g);
+ $('rec').innerHTML=(win?`<div class="stat"><b style="color:#00e436">${r.n?r.n.w:r.w}</b><span>wins</span></div><div class="stat"><b style="color:#ff004d">${r.n?r.n.l:r.l}</b><span>losses</span></div>`:`<div class="stat"><b>${h.length?Math.max(...h.map(x=>x.s)):0}</b><span>best score</span></div>`)+`<div class="stat"><b>${h.length}</b><span>games recorded</span></div>`;
+ $('hist').innerHTML=h.length?h.slice(0,10).map(x=>`<tr><td style="width:62px"><span class="tag" style="background:${x.w===1?'#008751':x.w===0?'#7e2553':'#2a2535'};color:#fff1e8">${x.w===1?'WIN':x.w===0?'LOSS':'RUN'}</span></td><td>${E(x.d||'')}<small>${new Date(x.t).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</small></td><td class="s">${x.s}</td></tr>`).join(''):`<tr><td class="muted" style="text-align:center;padding:20px">Your last 10 games show up here.</td></tr>`;
+ history.replaceState(null,'','?g='+g+'&s='+scope);
 }
-gs.addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(b){g=b.dataset.g;mode='main';draw()}});
-ms.addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){mode=b.dataset.m;draw()}});
-draw();</script>
+$('gs').addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(b){g=b.dataset.g;mode='main';draw()}});
+$('ss').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(b){scope=b.dataset.s;draw()}});
+$('ms').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(b){mode=b.dataset.m;draw()}});
+draw();
+</script>
 <script src="shell.js"></script>
 </body>
 </html>

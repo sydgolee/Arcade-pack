@@ -3,9 +3,9 @@
    local leaderboards, awards, play stats, toasts. Everything stays on this device. */
 (function(){
 'use strict';
-const VERSION='1.0.0';
+const VERSION='1.1.0';
 const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const DEF={vol:80,sound:true,haptics:true,fx:true,fps:false,touch:'auto',ctl:'m',lefty:false};
+const DEF={online:true,vol:80,sound:true,haptics:true,fx:true,fps:false,touch:'auto',ctl:'m',lefty:false};
 let S=Object.assign({},DEF,LS.get('arc_settings',{}));
 
 const GAMES={
@@ -31,34 +31,52 @@ const GAMES={
 const page=(location.pathname.split('/').pop()||'index.html');
 const GAME=Object.keys(GAMES).find(k=>GAMES[k].f===page)||null;
 
-/* ---------- awards ---------- */
+/* ---------- trophies ---------- */
+const TIER={b:{n:'BRONZE',c:'#d27d2c',p:15},s:{n:'SILVER',c:'#c2c3c7',p:30},g:{n:'GOLD',c:'#ffec27',p:90},p:{n:'PLATINUM',c:'#7ee8fa',p:300}};
 const AWARDS=[
- ['first','INSERT COIN','Finish your first game in the pack.'],
- ['all6','COLLECTOR','Play all six games.'],
- ['hour','ARCADE RAT','Play for one hour in total.'],
- ['d10','DEEP DIVER','Reach room 10 in Dungeon of One Room.'],
- ['d25','INTO THE ABYSS','Reach room 25 in Dungeon of One Room.'],
- ['w1','WALL BUILDER','Win a game of Wall Maze.'],
- ['w3','GRANDMASTER','Beat the Hard CPU in Wall Maze.'],
- ['f1','SEA LEGS','Win a game of Fleet Strike.'],
- ['f3','ADMIRAL SLAYER','Beat the Admiral in Fleet Strike.'],
- ['f45','SHARPSHOOTER','Win Fleet Strike in 45 shots or fewer.'],
- ['p1','CHALK UP','Win a game of 8-Ball.'],
- ['p3','SHARK BAIT','Beat the Shark at 8-Ball.'],
- ['c1k','TRAIL BLAZER','Ride 1000m in High Noon Rider.'],
- ['c3k','LEGEND OF THE WEST','Ride 3000m in High Noon Rider.'],
- ['g1k','MADE MAN','Run 1000m in Tommy Gun Alley.'],
- ['g3k','KINGPIN','Run 3000m in Tommy Gun Alley.']
+ ['first','b','INSERT COIN','Finish your first game in the pack.'],
+ ['named','b','NAME IN LIGHTS','Put your name on a leaderboard.'],
+ ['sport','b','GOOD SPORT','Lose 5 games and keep playing.'],
+ ['d5','b','DOOR OPENER','Reach room 5 in Dungeon of One Room.'],
+ ['w0','b','FIRST WALL','Beat the Easy CPU in Wall Maze.'],
+ ['f0','b','CADET','Beat the Cadet in Fleet Strike.'],
+ ['p0','b','CHALK UP','Beat the Rookie at 8-Ball.'],
+ ['c500','b','SADDLE UP','Ride 500m in High Noon Rider.'],
+ ['g500','b','NEW IN TOWN','Run 500m in Tommy Gun Alley.'],
+ ['d10','s','DEEP DIVER','Reach room 10 in Dungeon of One Room.'],
+ ['w1','s','WALL BUILDER','Beat the Normal CPU in Wall Maze.'],
+ ['f1','s','CAPTAIN','Beat the Captain in Fleet Strike.'],
+ ['p1','s','HUSTLED','Beat the Hustler at 8-Ball.'],
+ ['c1k','s','TRAIL BLAZER','Ride 1000m in High Noon Rider.'],
+ ['g1k','s','MADE MAN','Run 1000m in Tommy Gun Alley.'],
+ ['all6','s','COLLECTOR','Play all six games.'],
+ ['streak3','s','HAT TRICK','Win 3 games in a row against the CPU.'],
+ ['f45','s','SHARPSHOOTER','Win Fleet Strike in 45 shots or fewer.'],
+ ['wall10','s','NO WALLS NEEDED','Win Wall Maze without placing a single wall.'],
+ ['d25','g','INTO THE ABYSS','Reach room 25 in Dungeon of One Room.'],
+ ['w2','g','GRANDMASTER','Beat the Hard CPU in Wall Maze.'],
+ ['f2','g','ADMIRAL SLAYER','Beat the Admiral in Fleet Strike.'],
+ ['p2','g','SHARK BAIT','Beat the Shark at 8-Ball.'],
+ ['c3k','g','LEGEND OF THE WEST','Ride 3000m in High Noon Rider.'],
+ ['g3k','g','KINGPIN','Run 3000m in Tommy Gun Alley.'],
+ ['hour','g','ARCADE RAT','Play for one hour in total.'],
+ ['world','g','WORLD CLASS','Reach the global top 10 in any game.'],
+ ['plat','p','HALL OF FAME','Win every other trophy.']
 ];
-function unlock(id){const got=LS.get('arc_awards',{});if(got[id])return;got[id]=Date.now();LS.set('arc_awards',got);const a=AWARDS.find(x=>x[0]===id);if(a){toast('AWARD UNLOCKED',a[1],'#ffec27');buzz([20,40,20])}}
+function trophyPoints(){const got=LS.get('arc_awards',{});return AWARDS.reduce((a,x)=>a+(got[x[0]]?TIER[x[1]].p:0),0)}
+function unlock(id){const got=LS.get('arc_awards',{});if(got[id])return;got[id]=Date.now();LS.set('arc_awards',got);const a=AWARDS.find(x=>x[0]===id);if(!a)return;const t=TIER[a[1]];toast(t.n+' TROPHY','🏆 '+a[2],t.c);buzz([20,40,20]);
+ if(id!=='plat'&&AWARDS.every(x=>x[0]==='plat'||got[x[0]]))setTimeout(()=>unlock('plat'),3000)}
 function checkAwards(game,x){
  unlock('first');
- if(game==='dungeon'){if(x.room>=10)unlock('d10');if(x.room>=25)unlock('d25')}
- if(game==='wallmaze'&&x.win){unlock('w1');if(x.lvl>=2)unlock('w3')}
- if(game==='fleet'&&x.win){unlock('f1');if(x.lvl>=2)unlock('f3');if(x.shots<=45)unlock('f45')}
- if(game==='pool'&&x.win){unlock('p1');if(x.lvl>=2)unlock('p3')}
- if(game==='cowboy'){if(x.m>=1000)unlock('c1k');if(x.m>=3000)unlock('c3k')}
- if(game==='gangster'){if(x.m>=1000)unlock('g1k');if(x.m>=3000)unlock('g3k')}
+ const h=LS.get('arc_streak',{w:0,l:0});
+ if(x.win===1){h.w++;if(h.w>=3)unlock('streak3')}else if(x.win===0){h.w=0;h.l=(h.l||0)+1;if(h.l>=5)unlock('sport')}
+ LS.set('arc_streak',h);
+ if(game==='dungeon'){if(x.room>=5)unlock('d5');if(x.room>=10)unlock('d10');if(x.room>=25)unlock('d25')}
+ if(x.win===1){const k={wallmaze:'w',fleet:'f',pool:'p'}[game];if(k){unlock(k+'0');if(x.lvl>=1)unlock(k+'1');if(x.lvl>=2)unlock(k+'2')}}
+ if(game==='fleet'&&x.win===1&&x.shots<=45)unlock('f45');
+ if(game==='wallmaze'&&x.win===1&&x.walls===10)unlock('wall10');
+ if(game==='cowboy'){if(x.m>=500)unlock('c500');if(x.m>=1000)unlock('c1k');if(x.m>=3000)unlock('c3k')}
+ if(game==='gangster'){if(x.m>=500)unlock('g500');if(x.m>=1000)unlock('g1k');if(x.m>=3000)unlock('g3k')}
 }
 
 /* ---------- stats ---------- */
@@ -70,34 +88,49 @@ if(GAME){
  setInterval(()=>{if(document.hidden)return;bump(s=>{s.g[GAME].time=(s.g[GAME].time||0)+5});const t=Object.values(stats().g).reduce((a,g)=>a+(g.time||0),0);if(t>=3600)unlock('hour')},5000);
 }
 
-/* ---------- leaderboards (local top 10 per game and mode) ---------- */
-const REMOTE=null; // later: {url:'https://<worker>.workers.dev'} for worldwide boards
+/* ---------- results, history and leaderboards ---------- */
+const REMOTE={url:''}; // online leaderboard API (Cloudflare Worker); empty = this device only
+function playerId(){let id=LS.get('arc_pid','');if(!id){id=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now());LS.set('arc_pid',id)}return id}
 const lbKey=(g,m)=>'arc_lb_'+g+(m&&m!=='main'?'_'+m:'');
 function board(g,m){return LS.get(lbKey(g,m),[])}
+function history(g){return LS.get('arc_hist_'+g,[])}
+function record(g){const h=history(g);return {w:h.filter(r=>r.w===1).length,l:h.filter(r=>r.w===0).length,n:LS.get('arc_rec_'+g,null)}}
 function submit(game,score,detail,x){
  x=x||{};score=Math.max(0,Math.round(score||0));
  try{checkAwards(game,x)}catch(e){}
- if(!score)return 0;
- const mode=x.mode||'main',list=board(game,mode),e={n:name()||'',s:score,d:detail||'',t:Date.now()};
+ const t=Date.now(),mode=x.mode||'main';
+ const h=history(game);h.unshift({s:score,d:detail||'',w:x.win===undefined?null:x.win,l:x.lvl,t});LS.set('arc_hist_'+game,h.slice(0,30));
+ if(x.win===1||x.win===0){const r=LS.get('arc_rec_'+game,{w:0,l:0});x.win?r.w++:r.l++;LS.set('arc_rec_'+game,r)}
+ if(!score){if(x.win===0)setTimeout(()=>toast('RESULT SAVED','Loss recorded. See SCORES.','#9a8fb0'),600);return 0}
+ const list=board(game,mode),e={n:name()||'',s:score,d:detail||'',t,w:x.win};
  list.push(e);list.sort((a,b)=>b.s-a.s||a.t-b.t);const top=list.slice(0,10),rank=top.indexOf(e)+1;
  LS.set(lbKey(game,mode),top);
- if(rank){
-  setTimeout(()=>{if(!name())askName(rank,score,game,mode,e.t);else toast(rank===1?'NEW HIGH SCORE!':'LEADERBOARD #'+rank,score+' '+(GAMES[game]?.unit||''),'#00e436')},700);
- }
- if(REMOTE&&name())try{fetch(REMOTE.url+'/score',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({game,mode,name:name(),score,detail,version:VERSION})}).catch(()=>{})}catch(e){}
+ const send=()=>sendRemote(game,mode,score,detail);
+ if(rank&&!name())setTimeout(()=>askName(rank,score,game,mode,t,send),700);
+ else{if(rank)setTimeout(()=>toast(rank===1?'NEW HIGH SCORE!':'THIS DEVICE #'+rank,score+' '+(GAMES[game]?.unit||''),'#00e436'),700);else if(x.win===0)setTimeout(()=>toast('RESULT SAVED',score+' '+(GAMES[game]?.unit||'')+' · see SCORES','#9a8fb0'),600);send()}
  return rank;
+}
+function sendRemote(game,mode,score,detail){
+ if(!REMOTE.url||!name()||!S.online)return;
+ fetch(REMOTE.url+'/score',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({game,mode,name:name(),score,detail:String(detail||'').slice(0,40),player:playerId(),v:VERSION})})
+  .then(r=>r.ok?r.json():null).then(j=>{if(!j)return;if(j.world&&j.world<=10){unlock('world')}if(j.world)setTimeout(()=>toast('WORLD RANK #'+j.world,(j.country?j.country+' RANK #'+j.countryRank+' · ':'')+score,'#29adff'),2600)}).catch(()=>{});
+}
+async function remoteTop(game,mode,scope,period){
+ if(!REMOTE.url)return null;
+ const q=new URLSearchParams({game,mode:mode||'main',scope,period:period||'all'});
+ const r=await fetch(REMOTE.url+'/top?'+q,{cache:'no-store'});if(!r.ok)throw new Error('offline');return r.json();
 }
 
 /* ---------- player name ---------- */
 function name(){return (LS.get('arc_name','')||'').slice(0,12)}
 const clean=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9 _.-]/g,'').trim().slice(0,12);
-function setName(v){v=clean(v);LS.set('arc_name',v);return v}
-function askName(rank,score,game,mode,t){
+function setName(v){v=clean(v);LS.set('arc_name',v);if(v)setTimeout(()=>unlock('named'),300);return v}
+function askName(rank,score,game,mode,t,after){
  const ov=modal(`<h2>${rank===1?'NEW HIGH SCORE!':'YOU MADE THE BOARD'}</h2><p class="arc-big">#${rank} · ${score}</p><p>Enter your name for the leaderboard.</p>
   <input id="arcNameIn" maxlength="12" autocomplete="nickname" autocapitalize="characters" spellcheck="false" placeholder="YOUR NAME" aria-label="Your name">
-  <div class="arc-row"><button class="arc-b arc-ghost" data-x>SKIP</button><button class="arc-b" id="arcNameOk">SAVE</button></div>`);
+  <p style="font-size:16px;color:#9a8fb0">Your name and score also go on the online boards. You can turn that off in Settings.</p><div class="arc-row"><button class="arc-b arc-ghost" data-x>SKIP</button><button class="arc-b" id="arcNameOk">SAVE</button></div>`);
  const inp=ov.querySelector('#arcNameIn');setTimeout(()=>inp.focus(),50);
- const ok=()=>{const n=setName(inp.value);if(n){const k=lbKey(game,mode),l=LS.get(k,[]);for(const r of l)if(!r.n&&r.t===t)r.n=n;LS.set(k,l)}close(ov)};
+ const ok=()=>{const n=setName(inp.value);if(n){const k=lbKey(game,mode),l=LS.get(k,[]);for(const r of l)if(!r.n&&r.t===t)r.n=n;LS.set(k,l);unlock('named')}close(ov);after&&after()};
  ov.querySelector('#arcNameOk').onclick=ok;inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')ok()});
 }
 
@@ -220,13 +253,15 @@ function settingsHTML(opts){opts=opts||{};const games=GAME?[GAME]:Object.keys(GA
  <h3>PLAYER</h3>
  <div class="arc-set"><label for="arcName">Leaderboard name<small>Up to 12 letters or numbers.</small></label></div>
  <input id="arcName" maxlength="12" value="${esc(name())}" placeholder="YOUR NAME" autocomplete="nickname" spellcheck="false">
- ${opts.full?`<h3>DATA</h3><p>Progress, saves and scores live only on this device.</p><div class="arc-row"><button class="arc-b arc-ghost" id="arcReset" type="button">RESET ALL PROGRESS</button></div>`:''}
+ ${sw('online','Online leaderboards','Send your name and scores to the world and country boards.')}
+ ${opts.full?`<h3>DATA</h3><p>Progress and saves live on this device. Online scores are only sent when you have a name and online leaderboards are on.</p>${REMOTE.url?`<div class="arc-row"><button class="arc-b arc-ghost" id="arcForget" type="button">DELETE MY ONLINE SCORES</button></div>`:''}<div class="arc-row"><button class="arc-b arc-ghost" id="arcReset" type="button">RESET ALL PROGRESS</button></div><p style="font-size:16px"><a href="privacy.html" style="color:#9a8fb0">Privacy policy</a></p>`:''}
  <p style="color:#5f574f;text-align:center;margin-top:14px">8-Bit Arcade Pack v${VERSION}</p>`}
 function bindSettings(root){
  root.querySelectorAll('.arc-sw').forEach(i=>i.addEventListener('change',()=>set(i.dataset.k,i.checked)));
  root.querySelectorAll('.arc-seg button').forEach(b=>b.addEventListener('click',()=>{set(b.dataset.k,b.dataset.v);root.querySelectorAll(`.arc-seg button[data-k="${b.dataset.k}"]`).forEach(x=>x.setAttribute('aria-pressed',x===b))}));
  const r=root.querySelector('#arc_vol');r&&r.addEventListener('input',()=>{set('vol',+r.value);root.querySelector('#arcVolV').textContent=r.value+'%'});
  const n=root.querySelector('#arcName');n&&n.addEventListener('change',()=>{n.value=setName(n.value)});n&&['keydown','keyup'].forEach(t=>n.addEventListener(t,e=>e.stopPropagation()));
+ const fg=root.querySelector('#arcForget');fg&&fg.addEventListener('click',()=>{const ov=modal(`<h2>DELETE ONLINE SCORES?</h2><p>This removes every score this device sent to the world and country boards. Scores on this device stay.</p><div class="arc-row"><button class="arc-b arc-ghost" data-x>KEEP</button><button class="arc-b" id="arcFYes">DELETE</button></div>`);ov.querySelector('#arcFYes').onclick=()=>{fetch(REMOTE.url+'/player?player='+encodeURIComponent(playerId()),{method:'DELETE'}).then(r=>r.json()).then(j=>{close(ov);toast('ONLINE SCORES DELETED',(j.deleted||0)+' removed','#29adff')}).catch(()=>{close(ov);toast('NO CONNECTION','Try again when you are online.','#ff004d')})}});
  const rs=root.querySelector('#arcReset');rs&&rs.addEventListener('click',()=>{
   const ov=modal(`<h2>RESET EVERYTHING?</h2><p>This deletes all saves, records, leaderboards, awards and settings on this device. It cannot be undone.</p><div class="arc-row"><button class="arc-b arc-ghost" data-x>KEEP</button><button class="arc-b" id="arcRYes" style="background:#ff004d;color:#fff1e8;box-shadow:0 5px 0 #7e2553">DELETE</button></div>`);
   ov.querySelector('#arcRYes').onclick=()=>{try{const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^(arc_|door_|cowboy_|gangster_|quor_|bs_|pool_|run_)/.test(k))ks.push(k)}ks.forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()}});
@@ -240,5 +275,5 @@ function addGear(){document.querySelectorAll('a[href="index.html"]').forEach(a=>
 function ready(fn){document.readyState==='loading'?document.addEventListener('DOMContentLoaded',fn):fn()}
 ready(()=>{apply();if(GAME)addGear()});
 
-window.ARC={VERSION,GAMES,GAME,AWARDS,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),openSettings,settingsHTML,bindSettings,modal,esc};
+window.ARC={VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
 })();

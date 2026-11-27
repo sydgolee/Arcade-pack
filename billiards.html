@@ -133,7 +133,7 @@ function settle(){breakShot=false;const ev=events;events=null;const pi=turn,op=1
  else{turn=op;say(isCpu()?'CPU TO SHOOT':pvp?`PLAYER ${turn+1} TO SHOOT`:'YOUR SHOT')}
  state='aim';ui();maybeCpu()}
 function respot8(){const e=balls.find(b=>b.n===8);e.in=false;e.vx=e.vy=0;e.x=TW/2;e.y=TH*.25;for(const b of balls)if(b!==e&&!b.in&&Math.hypot(b.x-e.x,b.y-e.y)<BR*2)e.y-=BR*2.2}
-function finish(w,why){over=true;state='over';breaker=pvp?1-w:(w===0?1:0);const rec=store.get('pool_rec')||{w:0,l:0};if(!pvp){w===0?rec.w++:rec.l++;store.set('pool_rec',rec)}if(window.ARC&&!pvp&&w===0)ARC.submit('pool',[150,300,600][lvl]+balls.filter(b=>!b.in&&b.n!==0&&b.n!==8).length*40,['ROOKIE','HUSTLER','SHARK'][lvl],{win:1,lvl});
+function finish(w,why){over=true;state='over';breaker=pvp?1-w:(w===0?1:0);const rec=store.get('pool_rec')||{w:0,l:0};if(!pvp){w===0?rec.w++:rec.l++;store.set('pool_rec',rec)}if(window.ARC&&!pvp){const own=groups[0]?balls.filter(b=>b.in&&b.n&&b.n!==8&&groupOf(b.n)===groups[0]).length:0;ARC.submit('pool',w===0?[150,300,600][lvl]+balls.filter(b=>!b.in&&b.n!==0&&b.n!==8).length*40:own*20,['ROOKIE','HUSTLER','SHARK'][lvl]+' · '+(w===0?'win':'lost, '+own+' of 7 potted'),{win:w===0?1:0,lvl})}
  clearTimeout(endT);endT=setTimeout(()=>{$('endT').textContent=pvp?`PLAYER ${w+1} WINS`:w===0?'YOU WIN':'CPU WINS';$('endP').textContent=why+(pvp?'':` Record vs CPU: ${rec.w} win${rec.w===1?'':'s'}, ${rec.l} loss${rec.l===1?'':'es'}.`);
   (w===0||pvp?[523,659,784,1046]:[392,311,233]).forEach((f,i)=>setTimeout(()=>beep(f,.16),i*120));$('end').classList.add('on')},700)}
 

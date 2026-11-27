@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Trophies · 8-Bit Arcade Pack</title>
+<meta name="description" content="Trophies and play stats for the 8-Bit Arcade Pack.">
+<link href="fonts/fonts.css" rel="stylesheet">
+<link href="site.css" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0a12">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<script src="arcade.js"></script>
+</head>
+<body>
+<div class="top"><a class="back" href="index.html">◀ GAMES</a></div>
+
+<div class="wrap">
+<h1>TROPHY ROOM</h1>
+<p class="sub" id="cnt"></p>
+<div class="stats" id="tiers" style="margin-bottom:18px"></div>
+<div class="aw" id="aw"></div>
+<h2>YOUR STATS</h2>
+<div class="stats" id="st"></div>
+</div>
+<script>
+const got=ARC.awards(),T=ARC.TIER,A=ARC.AWARDS;
+const cup=c=>`<svg viewBox="0 0 16 16" width="40" height="40" aria-hidden="true" style="shape-rendering:crispEdges"><path fill="${c}" d="M3 2h10v1h2v4h-1v1h-2v1h-1v1H9v2h2v1h1v2H4v-2h1v-1h2v-2H5V9H4V8H2V7H1V3h2zm-1 2v2h1V4zm11 0v2h1V4z"/><path fill="rgba(255,255,255,.45)" d="M5 3h1v4H5z"/><path fill="rgba(0,0,0,.35)" d="M11 3h1v4h-1zM4 13h8v1H4z"/></svg>`;
+const pts=ARC.trophyPoints(),n=Object.keys(got).filter(k=>A.some(a=>a[0]===k)).length;
+document.getElementById('cnt').textContent=`${n} of ${A.length} trophies · ${pts} trophy points`;
+document.getElementById('tiers').innerHTML=['b','s','g','p'].map(t=>{const all=A.filter(a=>a[1]===t),h=all.filter(a=>got[a[0]]).length;return `<div class="stat" style="border-color:${h?T[t].c:'#2a2535'}">${cup(h?T[t].c:'#3a3445')}<b style="color:${T[t].c}">${h}/${all.length}</b><span>${T[t].n.toLowerCase()}</span></div>`}).join('');
+document.getElementById('aw').innerHTML=A.map(([id,t,name,d])=>{const g=got[id];return `<div class="award${g?' got':''}" style="${g?'border-color:'+T[t].c:''}"><div class="ico" style="border-color:${g?T[t].c:'#2a2535'}">${cup(g?T[t].c:'#2a2535')}</div><div><b style="${g?'color:'+T[t].c:''}">${name}</b><span>${d}</span><span class="muted" style="font-size:15px">${T[t].n}${g?' · '+new Date(g).toLocaleDateString():''}</span></div></div>`}).join('');
+const s=ARC.stats(),G=ARC.GAMES,fmt=t=>t>=3600?Math.floor(t/3600)+'h '+Math.floor(t%3600/60)+'m':Math.floor(t/60)+'m';
+const tot=Object.values(s.g).reduce((a,g)=>a+(g.time||0),0),plays=Object.values(s.g).reduce((a,g)=>a+(g.plays||0),0);
+document.getElementById('st').innerHTML=`<div class="stat"><b>${fmt(tot)}</b><span>total play time</span></div><div class="stat"><b>${plays}</b><span>sessions</span></div>`+Object.keys(G).map(k=>{const g=s.g[k]||{};return `<div class="stat" style="border-color:${g.plays?G[k].c:'#2a2535'}"><b style="color:${G[k].c}">${fmt(g.time||0)}</b><span>${G[k].t}</span></div>`}).join('');
+</script>
+<script src="shell.js"></script>
+</body>
+</html>
