@@ -150,9 +150,22 @@ if(AN&&AN.connect&&!AN.__arc){
   return oc.call(this,dest,...a);
  };
 }
-function applyVol(){const v=S.sound?Math.pow(S.vol/100,1.6):0;for(const g of masters.values())try{g.gain.value=v}catch(e){}}
+/* track every AudioContext a game makes, and wake them on any tap (iPhone starts them paused) */
+const ctxs=new Set();
+['AudioContext','webkitAudioContext'].forEach(k=>{const AC=window[k];if(!AC||AC.__arc)return;
+ const W=function(...a){const c=new AC(...a);ctxs.add(c);return c};W.prototype=AC.prototype;W.__arc=1;try{Object.setPrototypeOf(W,AC)}catch(e){}window[k]=W});
+/* iPhone: play sound even when the ring/silent switch is on silent */
+try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+let keepAlive=null;
+function silentLoop(){if(keepAlive||navigator.audioSession)return;try{
+ const sr=8000,n=sr/2,b=new Uint8Array(44+n),v=new DataView(b.buffer),w=(o,s)=>[...s].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
+ w(0,'RIFF');v.setUint32(4,36+n,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr,true);v.setUint16(32,1,true);v.setUint16(34,8,true);w(36,'data');v.setUint32(40,n,true);b.fill(128,44);
+ keepAlive=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));keepAlive.loop=true;keepAlive.setAttribute('playsinline','');keepAlive.volume=0.01;keepAlive.play().catch(()=>{keepAlive=null})}catch(e){}}
+function wake(){if(!S.sound)return;silentLoop();for(const c of ctxs){try{if(c.state!=='running'&&c.state!=='closed'&&!document.hidden)c.resume()}catch(e){}}}
+['pointerdown','touchend','keydown','click'].forEach(t=>addEventListener(t,wake,{capture:true,passive:true}));
+function applyVol(){const boost=['fleet','wallmaze','pool'].includes(GAME)?2.6:1.15,v=S.sound?Math.pow(S.vol/100,1.6)*boost:0;for(const g of masters.values())try{g.gain.value=v}catch(e){}}
 const wasRunning=new Set();
-document.addEventListener('visibilitychange',()=>{for(const ctx of masters.keys()){try{if(document.hidden){if(ctx.state==='running'){wasRunning.add(ctx);ctx.suspend()}}else if(wasRunning.has(ctx)){wasRunning.delete(ctx);ctx.resume()}}catch(e){}}});
+document.addEventListener('visibilitychange',()=>{try{if(keepAlive){document.hidden?keepAlive.pause():S.sound&&keepAlive.play().catch(()=>{})}}catch(e){}for(const ctx of masters.keys()){try{if(document.hidden){if(ctx.state==='running'){wasRunning.add(ctx);ctx.suspend()}}else if(wasRunning.has(ctx)){wasRunning.delete(ctx);ctx.resume()}}catch(e){}}});
 
 /* ---------- haptics ---------- */
 function buzz(p){if(S.haptics&&navigator.vibrate)try{navigator.vibrate(p||8)}catch(e){}}
@@ -165,7 +178,7 @@ function apply(){
  for(const z of['s','m','l'])h.classList.toggle('arc-ctl-'+z,S.ctl===z);
  h.classList.toggle('arc-touch-on',S.touch==='on');h.classList.toggle('arc-touch-off',S.touch==='off');
  h.style.setProperty('--arc-ctl',{s:.8,m:1,l:1.22}[S.ctl]||1);
- applyVol();fpsOn(S.fps);
+ applyVol();fpsOn(S.fps);if(!S.sound&&keepAlive)try{keepAlive.pause()}catch(e){}
 }
 function set(k,v){S[k]=v;LS.set('arc_settings',S);apply();try{dispatchEvent(new CustomEvent('arcsettings',{detail:S}))}catch(e){}}
 const fx=n=>S.fx?n:0;
@@ -277,5 +290,5 @@ function addGear(){document.querySelectorAll('a[href="index.html"]').forEach(a=>
 function ready(fn){document.readyState==='loading'?document.addEventListener('DOMContentLoaded',fn):fn()}
 ready(()=>{apply();if(GAME)addGear()});
 
-window.ARC={VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
+window.ARC={audioCtxs:()=>[...ctxs].map(c=>c.state),VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
 })();
