@@ -96,10 +96,11 @@ let ac=null;function beep(f,d=.08,type='square',v=.04,sl=0){try{ac=ac||new(windo
 /* ---------- rules ---------- */
 const DIRS=[[0,-1],[1,0],[0,1],[-1,0]];
 const inB=(x,y)=>x>=0&&y>=0&&x<N&&y<N;
-const wi=(x,y)=>y*8+x;
+// one wall = one square edge. hw: edge under square (x,y), x 0-8, y 0-7. vw: edge right of square (x,y), x 0-7, y 0-8.
+const hi=(x,y)=>y*9+x,vi=(x,y)=>y*8+x,wi=(o,x,y)=>o==='h'?hi(x,y):vi(x,y);
 function blocked(s,x,y,nx,ny){
- if(nx===x){const top=Math.min(y,ny);return(x<8&&s.hw[wi(x,top)])||(x>0&&s.hw[wi(x-1,top)])}
- const left=Math.min(x,nx);return(y<8&&s.vw[wi(left,y)])||(y>0&&s.vw[wi(left,y-1)])}
+ if(nx===x)return!!s.hw[hi(x,Math.min(y,ny))];
+ return!!s.vw[vi(Math.min(x,nx),y)]}
 const goalY=pi=>pi===0?0:8;
 function dist(s,pi,parent){const[sx,sy]=s.pos[pi],g=goalY(pi),seen=new Int16Array(81).fill(-1),q=[sx+sy*N];seen[sx+sy*N]=0;
  if(parent)parent.fill(-1);
@@ -120,20 +121,18 @@ function pawnMoves(s,pi){const[x,y]=s.pos[pi],[ox,oy]=s.pos[1-pi],out=[];
    else for(const[px,py]of dx?[[0,-1],[0,1]]:[[-1,0],[1,0]]){const sx=ox+px,sy=oy+py;if(inB(sx,sy)&&!blocked(s,ox,oy,sx,sy))out.push([sx,sy])}}
   else out.push([nx,ny])}
  return out}
-function wallFits(s,o,x,y){if(x<0||y<0||x>7||y>7)return false;const k=wi(x,y);
- if(o==='h'){if(s.hw[k]||s.vw[k])return false;if(x>0&&s.hw[wi(x-1,y)])return false;if(x<7&&s.hw[wi(x+1,y)])return false}
- else{if(s.vw[k]||s.hw[k])return false;if(y>0&&s.vw[wi(x,y-1)])return false;if(y<7&&s.vw[wi(x,y+1)])return false}
- return true}
-function canWall(s,pi,o,x,y){if(s.walls[pi]<=0||!wallFits(s,o,x,y))return false;const arr=o==='h'?s.hw:s.vw,k=wi(x,y);arr[k]=1;const ok=dist(s,0)<999&&dist(s,1)<999;arr[k]=0;return ok}
+function wallFits(s,o,x,y){if(o==='h'){if(x<0||x>8||y<0||y>7)return false;return!s.hw[hi(x,y)]}
+ if(x<0||x>7||y<0||y>8)return false;return!s.vw[vi(x,y)]}
+function canWall(s,pi,o,x,y){if(s.walls[pi]<=0||!wallFits(s,o,x,y))return false;const arr=o==='h'?s.hw:s.vw,k=wi(o,x,y);arr[k]=1;const ok=dist(s,0)<999&&dist(s,1)<999;arr[k]=0;return ok}
 const clone=s=>({pos:[s.pos[0].slice(),s.pos[1].slice()],walls:s.walls.slice(),hw:s.hw.slice(),vw:s.vw.slice(),turn:s.turn});
-function apply(s,m){const n=clone(s),pi=n.turn;if(m.t==='p')n.pos[pi]=[m.x,m.y];else{(m.o==='h'?n.hw:n.vw)[wi(m.x,m.y)]=1;n.walls[pi]--}n.turn=1-pi;return n}
+function apply(s,m){const n=clone(s),pi=n.turn;if(m.t==='p')n.pos[pi]=[m.x,m.y];else{(m.o==='h'?n.hw:n.vw)[wi(m.o,m.x,m.y)]=1;n.walls[pi]--}n.turn=1-pi;return n}
 const winner=s=>s.pos[0][1]===0?0:s.pos[1][1]===8?1:-1;
 
 /* ---------- CPU ---------- */
 function wallCandidates(s,pi,root){const opp=1-pi,set=new Map(),src=[[pathCells(s,opp),!root&&s.walls[0]>7&&s.walls[1]>7?3:6]];if(root)src.push([pathCells(s,pi),2]);
  for(const[cells,lim]of src)for(let i=0;i+1<cells.length&&i<=lim;i++){const a=cells[i],b=cells[i+1],ax=a%N,ay=a/N|0,bx=b%N,by=b/N|0;
-  if(ax===bx){const ty=Math.min(ay,by);for(const x of[ax-1,ax])set.set('h'+x+','+ty,{t:'w',o:'h',x,y:ty})}
-  else{const lx=Math.min(ax,bx);for(const y of[ay-1,ay])set.set('v'+lx+','+y,{t:'w',o:'v',x:lx,y})}
+  if(ax===bx){const ty=Math.min(ay,by);set.set('h'+ax+','+ty,{t:'w',o:'h',x:ax,y:ty})}
+  else{const lx=Math.min(ax,bx);set.set('v'+lx+','+ay,{t:'w',o:'v',x:lx,y:ay})}
   }
  return[...set.values()].filter(m=>canWall(s,pi,m.o,m.x,m.y))}
 function evalS(s,me){const w=winner(s);if(w===me)return 1e4;if(w===1-me)return-1e4;
@@ -168,9 +167,11 @@ function draw(){if(!S)return;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#3a1a1
  g.font=`${Math.max(7,Math.round(C*.17))}px "Press Start 2P",monospace`;g.textAlign='center';g.textBaseline='middle';
  g.fillStyle='rgba(41,173,255,.5)';g.fillText(pvp?'BLUE GOAL':'YOUR GOAL',BW/2,cx(0)+C*.82);g.fillStyle='rgba(255,0,77,.5)';g.fillText(pvp?'RED GOAL':'CPU GOAL',BW/2,cx(8)+C*.18);
  for(const[x,y]of pm){g.fillStyle='rgba(255,236,39,.35)';g.fillRect(cx(x)+3,cx(y)+3,C-6,C-6);g.strokeStyle='#ffec27';g.lineWidth=2;g.strokeRect(cx(x)+3,cx(y)+3,C-6,C-6)}
- const wall=(o,x,y,col,a=1)=>{g.globalAlpha=a;g.fillStyle=col;if(o==='h')g.fillRect(cx(x),cx(y)+C,2*C+Gp,Gp);else g.fillRect(cx(x)+C,cx(y),Gp,2*C+Gp);
-  g.fillStyle='rgba(255,255,255,.35)';if(o==='h')g.fillRect(cx(x),cx(y)+C,2*C+Gp,2);else g.fillRect(cx(x)+C,cx(y),2,2*C+Gp);g.globalAlpha=1};
- for(let y=0;y<8;y++)for(let x=0;x<8;x++){if(S.hw[wi(x,y)])wall('h',x,y,lastWall&&lastWall.o==='h'&&lastWall.x===x&&lastWall.y===y?'#fff1e8':'#ffec27');if(S.vw[wi(x,y)])wall('v',x,y,lastWall&&lastWall.o==='v'&&lastWall.x===x&&lastWall.y===y?'#fff1e8':'#ffec27')}
+ const wall=(o,x,y,col,a=1)=>{g.globalAlpha=a;g.fillStyle=col;if(o==='h')g.fillRect(cx(x)-1,cx(y)+C,C+2,Gp);else g.fillRect(cx(x)+C,cx(y)-1,Gp,C+2);
+  g.fillStyle='rgba(255,255,255,.35)';if(o==='h')g.fillRect(cx(x)-1,cx(y)+C,C+2,2);else g.fillRect(cx(x)+C,cx(y)-1,2,C+2);g.globalAlpha=1};
+ const lw=(o,x,y)=>lastWall&&lastWall.o===o&&lastWall.x===x&&lastWall.y===y?'#fff1e8':'#ffec27';
+ for(let y=0;y<8;y++)for(let x=0;x<9;x++)if(S.hw[hi(x,y)])wall('h',x,y,lw('h',x,y));
+ for(let y=0;y<9;y++)for(let x=0;x<8;x++)if(S.vw[vi(x,y)])wall('v',x,y,lw('v',x,y));
  if(ghost){const ok=canWall(S,S.turn,ghost.o,ghost.x,ghost.y);wall(ghost.o,ghost.x,ghost.y,ok?'#29adff':'#ff004d',.75)}
  if(lastPawn){const[fx,fy]=lastPawn.from;g.strokeStyle=lastPawn.pi===0?'rgba(41,173,255,.8)':'rgba(255,0,77,.8)';g.setLineDash([4,3]);g.lineWidth=2;g.strokeRect(cx(fx)+4,cx(fy)+4,C-8,C-8);g.setLineDash([])}
  const pawn=(pi)=>{let[x,y]=S.pos[pi];if(anim&&anim.pi===pi){const k=Math.min(1,(performance.now()-anim.t0)/160);x=anim.from[0]+(anim.to[0]-anim.from[0])*k;y=anim.from[1]+(anim.to[1]-anim.from[1])*k;if(k<1)requestAnimationFrame(draw);else anim=null}
@@ -203,11 +204,11 @@ function finish(w){if(online)return finishOnline(w);const rec=store.get('quor_re
   $('endP').textContent=pvp?'':(w===0&&undoUsed?'You used undo, so this win is not counted. ':'')+`Record vs CPU: ${rec.w} win${rec.w===1?'':'s'}, ${rec.l} loss${rec.l===1?'':'es'}.`;
   w===0||pvp?[523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,.15),i*110)):[392,311,233].forEach((f,i)=>setTimeout(()=>beep(f,.2),i*140));
   $('end').classList.add('on')},500)}
-function newGame(){clearTimeout(cpuT);S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(64),vw:new Uint8Array(64),turn:0};hist=[];mode='move';ghost=null;busy=false;lastWall=null;lastPawn=null;anim=null;recent=[[],[]];undoUsed=false;started=false;
+function newGame(){clearTimeout(cpuT);S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(72),vw:new Uint8Array(72),turn:0};hist=[];mode='move';ghost=null;busy=false;lastWall=null;lastPawn=null;anim=null;recent=[[],[]];undoUsed=false;started=false;
  for(const o of document.querySelectorAll('.ov'))o.classList.remove('on');layout();ui()}
 cv.addEventListener('pointerdown',e=>{if(!S||busy||!isHumanTurn()||winner(S)>=0)return;const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
  if(mode==='move'){const x=Math.floor(px/(C+Gp)),y=Math.floor(py/(C+Gp));if(pawnMoves(S,S.turn).some(([a,b])=>a===x&&b===y))commit({t:'p',x,y});else beep(110,.05)}
- else{const x=Math.max(0,Math.min(7,Math.round((px-C-Gp/2)/(C+Gp)))),y=Math.max(0,Math.min(7,Math.round((py-C-Gp/2)/(C+Gp))));
+ else{const P=C+Gp,cl=(v,a)=>Math.max(0,Math.min(a,v));let x,y;if(ori==='h'){x=cl(Math.floor(px/P),8);y=cl(Math.round((py-C-Gp/2)/P),7)}else{x=cl(Math.round((px-C-Gp/2)/P),7);y=cl(Math.floor(py/P),8)}
   if(ghost&&ghost.x===x&&ghost.y===y&&ghost.o===ori){if(canWall(S,S.turn,ori,x,y))commit({t:'w',o:ori,x,y});else beep(110,.1)}
   else{ghost={o:ori,x,y};beep(300,.03);ui()}}});
 $('mMove').addEventListener('click',()=>{mode='move';ghost=null;ui()});
@@ -226,7 +227,7 @@ $('forfeit').addEventListener('click',()=>{clearTimeout(cpuT);busy=false;if(!pvp
 for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{},{capture:true});
 $('toMenu').addEventListener('click',menu);$('menuBtn').addEventListener('click',menu);
 addEventListener('resize',layout);
-S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(64),vw:new Uint8Array(64),turn:0};layout();ui();menu();
+S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(72),vw:new Uint8Array(72),turn:0};layout();ui();menu();
 addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
 window.__q={get S(){return S},cpuMove,apply,pawnMoves,canWall,dist,winner};
 /* ---------- online play ---------- */
