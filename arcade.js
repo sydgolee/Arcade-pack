@@ -89,7 +89,7 @@ if(GAME){
 }
 
 /* ---------- results, history and leaderboards ---------- */
-const REMOTE={url:''}; // online leaderboard API (Cloudflare Worker); empty = this device only
+const REMOTE={url:'https://arcade-pack.s-golee.workers.dev'}; // online leaderboard API (Cloudflare Worker); empty = this device only
 function playerId(){let id=LS.get('arc_pid','');if(!id){id=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now());LS.set('arc_pid',id)}return id}
 const lbKey=(g,m)=>'arc_lb_'+g+(m&&m!=='main'?'_'+m:'');
 function board(g,m){return LS.get(lbKey(g,m),[])}
