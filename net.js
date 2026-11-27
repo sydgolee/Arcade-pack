@@ -6,7 +6,7 @@
 'use strict';
 const API=(window.ARC&&ARC.REMOTE&&ARC.REMOTE.url)||'https://arcade-pack.s-golee.workers.dev';
 const WS=API.replace(/^http/,'ws');
-let cfg=null,ws=null,info=null,retry=0,want=false,pingT=0,lobby=null,banner=null,opts={},clockT=0,turnStart=0,lastBeep=0;
+let goneAt=0,claimT=0,cfg=null,ws=null,info=null,retry=0,want=false,pingT=0,lobby=null,banner=null,opts={},clockT=0,turnStart=0,lastBeep=0;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const myName=()=>(window.ARC&&ARC.name())||'PLAYER';
 
@@ -81,33 +81,36 @@ function connect(){
 }
 function fail(msg){want=false;info=null;if(!lobby||!lobby.isConnected)lobby=ARC.modal('');lobby.querySelector('.arc-box').innerHTML=`<h2>CAN'T JOIN</h2><p>${esc(msg)}</p><div class="arc-row"><button class="arc-b" data-x>OK</button></div>`;history.replaceState(null,'',location.pathname)}
 function handle(m){
- if(m.t==='hello'){info.seat=m.seat;info.names=m.names||{};info.online=m.online||[];
+ if(m.t==='hello'){info.seat=m.seat;info.first=m.first||0;info.names=m.names||{};info.online=m.online||[];goneAt=info.online.includes(1-m.seat)?0:(m.log&&m.log.length?Date.now():0);
   history.replaceState(null,'',location.pathname+'?room='+info.code);
   const both=info.online.includes(0)&&info.online.includes(1);
-  if(!both&&!info.started&&!(m.log&&m.log.length)){if(opts.auto){if(!lobby||!lobby.isConnected)lobby=ARC.modal('');lobby.querySelector('.arc-box').innerHTML=`<h2>GET READY</h2><p style="text-align:center">Waiting for ${esc(opts.opp||'your opponent')} to connect…</p>`}else waiting(info.code)}
+  if(!both&&!info.started&&!(m.log&&m.log.length)){if(opts.auto){if(!lobby||!lobby.isConnected)lobby=ARC.modal('');lobby.querySelector('.arc-box').innerHTML=`<h2>GET READY</h2><p style="text-align:center">Waiting for ${esc(opts.opp||'your opponent')} to connect…</p>${opts.cup?'':'<div class="arc-row"><button class="arc-b arc-ghost" id="nGiveUp">CANCEL</button></div>'}`;const gu=lobby.querySelector('#nGiveUp');gu&&(gu.onclick=()=>{leave();lobby.remove();lobby=null})}else waiting(info.code)}
   else begin(m.log||[]);
   status();return}
- if(m.t==='peer'){info.names[m.seat]=m.name;info.online=m.online||info.online;if(!info.started)begin([]);else ARC.toast('FRIEND IS BACK',m.name,'#00e436');status();return}
- if(m.t==='left'){info.online=m.online||[];status();if(info.started)ARC.toast('FRIEND DISCONNECTED','Waiting for them to come back…','#ff004d');return}
+ if(m.t==='reject'){if(m.claim)return;ARC.toast('MOVE NOT ACCEPTED',m.why||'','#ff004d');cfg.onReject&&cfg.onReject(m.why);return}
+ if(m.t==='peer'){goneAt=0;info.names[m.seat]=m.name;info.online=m.online||info.online;if(!info.started)begin([]);else ARC.toast('FRIEND IS BACK',m.name,'#00e436');status();return}
+ if(m.t==='left'){info.online=m.online||[];if(m.seat!==info.seat&&!goneAt)goneAt=Date.now();status();if(info.started)ARC.toast('FRIEND DISCONNECTED','Waiting for them to come back…','#ff004d');return}
  if(m.t==='msg'){cfg.onMsg&&cfg.onMsg(m.from,m.d,false);return}
 }
 function begin(log){
  if(lobby&&lobby.isConnected){lobby.remove();lobby=null}
  info.started=true;clock();
- cfg.onStart&&cfg.onStart({seat:info.seat,me:myName(),them:them(),code:info.code});
+ cfg.onStart&&cfg.onStart({seat:info.seat,first:info.first,me:myName(),them:them(),code:info.code});
  for(const x of log)cfg.onMsg&&cfg.onMsg(x.from,x.d,true);
  if(cfg.onReplayDone)cfg.onReplayDone();
  status();
 }
 const them=()=>info?(info.names[1-info.seat]||'FRIEND'):'FRIEND';
 function send(d){if(ws&&ws.readyState===1){ws.send(JSON.stringify(d));return true}ARC.toast('NOT CONNECTED','Your move will not reach your friend. Reconnecting…','#ff004d');return false}
-function leave(){want=false;info=null;clearInterval(clockT);turnStart=0;try{ws&&ws.close()}catch(e){}ws=null;status();history.replaceState(null,'',location.pathname)}
+function leave(){try{if(info&&info.started&&ws&&ws.readyState===1&&cfg&&cfg.inProgress&&cfg.inProgress())ws.send(JSON.stringify({k:'forfeit'}))}catch(e){}goneAt=0;want=false;info=null;clearInterval(clockT);turnStart=0;try{ws&&ws.close()}catch(e){}ws=null;status();history.replaceState(null,'',location.pathname)}
 
 /* ---------- connection banner ---------- */
 function clock(){
  clearInterval(clockT);clockT=setInterval(()=>{
   if(!info||!info.started||!cfg||!cfg.myTurn){turnStart=0;return}
   const live=ws&&ws.readyState===1,friend=info.online.includes(1-info.seat),lim=cfg.myTurn();
+  if(live&&!friend&&goneAt&&cfg.inProgress&&cfg.inProgress()){const w=Math.ceil(90-(Date.now()-goneAt)/1000);if(banner){banner.textContent=w>0?`${them()} LEFT · YOU WIN IN ${w}s`:'CLAIMING THE WIN…';banner.style.background='#ab5236'}
+   if(w<=0&&Date.now()-claimT>8000){claimT=Date.now();try{ws.send('{"k":"claim"}')}catch(e){}}return}
   if(!lim||!live||!friend){if(turnStart){turnStart=0;status()}return}
   if(!turnStart)turnStart=Date.now();
   const left=Math.ceil(lim-(Date.now()-turnStart)/1000);

@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
@@ -230,7 +230,7 @@ const snapBalls=()=>balls.map(x=>[x.x,x.y,x.in?1:0]);
 function setBalls(b){balls.forEach((x,i)=>{x.x=b[i][0];x.y=b[i][1];x.in=!!b[i][2];x.vx=x.vy=0})}
 function onlineSay(){if(over)return;const mine=turn===online.seat;
  if(inHand&&!firstShot)say(mine?'FOUL. YOU HAVE BALL IN HAND':`FOUL. ${online.them} HAS BALL IN HAND`,mine?'#00e436':'#ff004d');
- else if(firstShot)say(mine?'YOUR BREAK. DRAG THE WHITE BEHIND THE LINE, THEN AIM':`${online.them} BREAKS`);
+ else if(firstShot)say(mine?'COIN TOSS: YOUR BREAK. DRAG THE WHITE BEHIND THE LINE, THEN AIM':`COIN TOSS: ${online.them} BREAKS`);
  else say(mine?'YOUR SHOT':`${online.them} TO SHOOT`,mine?'#ffec27':'')}
 function sendSync(){NET.send({k:'sync',s:{b:snapBalls(),turn,groups,inHand,kitchen,firstShot,over,win:lastWin,why:lastWhy}});onlineSay()}
 function applySync(s){clearInterval(anim);setBalls(s.b);events=null;breakShot=false;turn=s.turn;groups=s.groups;inHand=s.inHand;kitchen=s.kitchen;firstShot=s.firstShot;
@@ -240,15 +240,16 @@ function finishOnline(w,why){over=true;state='over';lastWin=w;lastWhy=why;const 
  if(!replaying&&window.ARC)ARC.submit('pool',0,`vs ${online.them} (online)`,{win:won?1:0,online:1});
  clearTimeout(endT);endT=setTimeout(()=>{$('endT').textContent=won?'YOU WIN':online.them+' WINS';$('endP').textContent=why;$('again').textContent='REMATCH';$('end').classList.add('on')},replaying?0:700)}
 function onlineNew(br){breaker=br;pvp=true;newGame();lastWin=0;lastWhy='';pendingSync=null;onlineSay();ui()}
-$('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();const br=1-breaker;NET.send({k:'reset',br});onlineNew(br)},{capture:true});
+$('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();NET.send({k:'reset'})},{capture:true});
 for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('again').textContent='PLAY AGAIN'}},{capture:true});
 if(window.NET)NET.init({game:'pool',
  myTurn(){return online&&turn===online.seat&&state==='aim'&&!over?45:0},
  onTimeout(){if(!online||over)return;NET.send({k:'forfeit'});finishOnline(1-online.seat,'You ran out of time.')},
- onStart(i){online=i;onlineNew(0)},
+ inProgress(){return !!online&&!over},
+ onStart(i){online=i;onlineNew(i.first||0)},
  onMsg(from,d,replay){if(!online)return;replaying=replay;try{
   if(d.k==='reset'){onlineNew(d.br||0);return}
-  if(d.k==='forfeit'){if(!over){const mine=from===online.seat;finishOnline(mine?1-online.seat:online.seat,mine?'You ran out of time.':`${online.them} ran out of time.`)}return}
+  if(d.k==='forfeit'){if(!over){const mine=from===online.seat;finishOnline(mine?1-online.seat:online.seat,mine?(d.away?'You left the game too long.':'You ran out of time.'):(d.away?`${online.them} left the game.`:`${online.them} ran out of time.`))}return}
   if(d.k==='shot'&&from!==online.seat&&!replay){applyShot(d);return}
   if(d.k==='sync'&&(from!==online.seat||replay)){if(!replay&&state==='roll'){pendingSync=d.s;return}applySync(d.s)}
  }finally{replaying=false}},

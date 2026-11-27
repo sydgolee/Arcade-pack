@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
@@ -300,7 +300,7 @@ const MILES=[[8,'Start normal runs with 1 reroll token'],[16,'Start normal runs 
 const perk=n=>codex.size>=n;
 
 /* ---------- sound ---------- */
-let ac=null,master=null,voices=0,shotV=0,muted=!!store.get('door_mute');
+let ac=null,master=null,voices=0,shotV=0,muted=window.ARC?!ARC.settings().sound:!!store.get('door_mute');
 function audio(){if(ac)return ac;try{ac=new(window.AudioContext||window.webkitAudioContext)();const comp=ac.createDynamicsCompressor();master=ac.createGain();master.gain.value=.9;master.connect(comp).connect(ac.destination)}catch(e){ac=null}return ac}
 addEventListener('pointerdown',()=>{audio();if(ac&&ac.state==='suspended')ac.resume()},{once:false});
 function tone(f,t,d,type,v,slide){const o=ac.createOscillator(),gn=ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
@@ -366,11 +366,11 @@ function restore(v){
   p:{x:W/2,y:H/2,vx:0,vy:0,hp:v.hp,max:v.max,inv:0,cd:0,face:1,hist:[],moved:true},en:[],bu:[],pa:[],haz:[],boomQ:[]};
  audio();show(null);paused=false;$('tip').textContent='';delete $('tip').dataset.set;
  if(v.cleared){S.room=v.room;S.bossRoom=v.room%5===0;renderRules();openDraft();return}
- if(v.mid&&v.daily&&!v.practice){S.p.hp--;if(S.p.hp<=0){S.room=v.room;S.killer='LEAVING MID-ROOM';die();return}S.reloadHit=true}
+ if(v.mid&&v.daily&&!v.practice&&!v.bg){S.p.hp--;if(S.p.hp<=0){S.room=v.room;S.killer='LEAVING MID-ROOM';die();return}S.reloadHit=true}
  startRoom();renderRules();if(S.reloadHit)setTimeout(()=>banner('-1 HEART: LEFT MID-ROOM'),1300)}
 function saveRun(extra={}){const p=S.p;store.set('door_save',{...extra,score:S.score||0,mid:S.mode==='play',daily:S.daily,practice:S.practice,date:S.date,seed:S.seed,room:S.room,rules:S.rules,hp:p.hp,max:p.max,rerolls:S.rerolls,frames:S.frames,kills:S.kills,blood:S.blood,prevBest:S.prevBest,streak:S.streak,newCodex:S.newCodex,gold:S.gold,crown:S.crown})}
 addEventListener('pagehide',()=>{if(S&&['play','cleared','draft'].includes(S.mode))saveRun(S.mode==='play'?{}:{cleared:1})});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&S&&['play','cleared','draft'].includes(S.mode))saveRun(S.mode==='play'?{}:{cleared:1})});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&S&&['play','cleared','draft'].includes(S.mode))saveRun(S.mode==='play'?{bg:1}:{cleared:1})});
 function resumeRun(){const v=store.get('door_save');if(!v)return;newRun(v.daily,v);}
 function bounds(){let i=T;if(has('shrink'))i+=Math.min(30,S.roomT/60*1.1);return{x0:i,y0:i,x1:W-i,y1:H-i}}
 function mk(type,x,y,rng=Math.random){const d=ET[type];let hp=d.hp;if(d.boss)hp+=Math.round(S.room*1.5);if(!d.inv&&has('armor'))hp=Math.round(hp*(d.boss?1.5:2));
@@ -642,7 +642,7 @@ function renderRules(){const el=$('rules');if(!S||!S.rules.length){el.innerHTML=
  const cs=COMBOS.filter(c=>combo(c.id)),items=[...cs.map(c=>`<span class="ic combo">★</span>`),...[...S.rules].reverse().map(id=>icon(RULE[id]))];
  const fit=Math.max(3,Math.floor((el.clientWidth||300)/32)),shown=items.length>fit?items.slice(0,fit-1):items;
  el.innerHTML=shown.join('')+(items.length>shown.length?`<span class="ic more">+${items.length-shown.length} ▸</span>`:'<span class="ic more">▸</span>');
- if(!$('tip').dataset.set)$('tip').textContent=`${S.rules.length} rules. Tap the strip to read them.`}
+ if(!$('tip').dataset.set)$('tip').textContent=`${S.rules.length} rule${S.rules.length===1?'':'s'}. Tap the strip to read them.`}
 function readChip(e,tipEl){const c=e.target.closest('.chip');if(!c)return;if(c.dataset.combo){const k=COMBOS.find(x=>x.id===c.dataset.combo);tipEl.textContent='COMBO '+k.name+': '+k.desc;tipEl.dataset.set=1;return}const r=RULE[c.dataset.id];tipEl.textContent=r.name+': '+r.desc;tipEl.dataset.set=1}
 $('rules').addEventListener('click',()=>{if(S&&['play','cleared'].includes(S.mode))togglePause(true)});
 
@@ -688,7 +688,9 @@ function shareText(){const cleared=S.room-1,names=S.rules.map(id=>RULE[id].name)
  return`DUNGEON OF ONE ROOM${S.daily?' · Daily '+S.date+(S.practice?' (practice)':' · streak '+S.streak):''}\nScore ${scoreOf()} · cleared ${cleared} · ${fmt(S.frames)} · killed by ${S.killer.toLowerCase()}\n${S.rules.map(id=>RULE[id].deal?'🟨':'🟥').join('')||'⬛'}\n${names.join(' > ')||'No rules'}\n${URL}`}
 $('copyBtn').addEventListener('click',async()=>{const txt=shareText(),ta=$('share');try{await navigator.clipboard.writeText(txt);$('copyBtn').textContent='COPIED!';setTimeout(()=>$('copyBtn').textContent='COPY RESULT',1400)}
  catch(e){ta.value=txt;ta.style.display='block';ta.select()}});
-function toggleMute(){muted=!muted;store.set('door_mute',muted);$('mute').textContent=muted?'OFF':'SND'}
+function toggleMute(){muted=!muted;if(window.ARC)ARC.set('sound',!muted);else store.set('door_mute',muted);$('mute').textContent=muted?'OFF':'SND'}
+addEventListener('arcsettings',e=>{muted=!e.detail.sound;const m=$('mute');if(m)m.textContent=muted?'OFF':'SND'});
+if(window.ARC)ARC.setBusy(()=>!!S&&['play','dying'].includes(S.mode)&&!paused);
 $('mute').textContent=muted?'OFF':'SND';
 $('mute').addEventListener('click',toggleMute);$('pauseBtn').addEventListener('click',()=>togglePause());
 $('resumeBtn').addEventListener('click',()=>togglePause());

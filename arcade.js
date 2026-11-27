@@ -3,7 +3,7 @@
    local leaderboards, awards, play stats, toasts. Everything stays on this device. */
 (function(){
 'use strict';
-const VERSION='1.3.0';
+const VERSION='1.4.0';
 const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const DEF={online:true,vol:80,sound:true,haptics:true,fx:true,fps:false,touch:'auto',ctl:'m',lefty:false};
 let S=Object.assign({},DEF,LS.get('arc_settings',{}));
@@ -46,7 +46,7 @@ const AWARDS=[
  ['online1','b','FRIEND OR FOE','Win an online game against a friend.'],
  ['quick1','b','QUICK DRAW','Play a Quick Match against another player.'],
  ['cup1','b','CONTENDER','Play in a tournament.'],
- ['cupqf','s','LAST EIGHT','Reach a tournament quarter-final, semi or final.'],
+ ['cupqf','s','SEMI-FINALIST','Reach a tournament semi-final.'],
  ['giant','s','GIANT KILLER','Knock a real player out of a tournament.'],
  ['cupfinal','s','FINALIST','Reach a tournament final.'],
  ['cupwin8','g','CUP WINNER','Win an 8-player tournament.'],
@@ -58,7 +58,7 @@ const AWARDS=[
  ['p1','s','HUSTLED','Beat the Hustler at 8-Ball.'],
  ['c1k','s','TRAIL BLAZER','Ride 1000m in High Noon Rider.'],
  ['g1k','s','MADE MAN','Run 1000m in Tommy Gun Alley.'],
- ['all6','s','COLLECTOR','Play all six games.'],
+ ['all6','s','COLLECTOR','Finish a game in all six games.'],
  ['streak3','s','HAT TRICK','Win 3 games in a row against the CPU.'],
  ['f45','s','SHARPSHOOTER','Win Fleet Strike in 45 shots or fewer.'],
  ['wall10','s','NO WALLS NEEDED','Win Wall Maze without placing a single wall.'],
@@ -93,8 +93,7 @@ function checkAwards(game,x){
 const stats=()=>LS.get('arc_stats',{first:Date.now(),g:{}});
 function bump(fn){const s=stats();fn(s);LS.set('arc_stats',s)}
 if(GAME){
- bump(s=>{const g=s.g[GAME]=s.g[GAME]||{plays:0,time:0};g.plays++;g.last=Date.now()});
- if(Object.keys(stats().g).length>=6)setTimeout(()=>unlock('all6'),800);
+ bump(s=>{s.g[GAME]=s.g[GAME]||{plays:0,time:0}});
  setInterval(()=>{if(document.hidden)return;bump(s=>{s.g[GAME].time=(s.g[GAME].time||0)+5});const t=Object.values(stats().g).reduce((a,g)=>a+(g.time||0),0);if(t>=3600)unlock('hour')},5000);
 }
 
@@ -109,6 +108,8 @@ function submit(game,score,detail,x){
  x=x||{};score=Math.max(0,Math.round(score||0));
  try{checkAwards(game,x)}catch(e){}
  const t=Date.now(),mode=x.mode||'main';
+ bump(s=>{const gg=s.g[game]=s.g[game]||{plays:0,time:0};gg.plays=(gg.plays||0)+1;gg.last=t});
+ if(Object.values(stats().g).filter(v=>v.plays>0).length>=6)setTimeout(()=>unlock('all6'),1500);
  const h=history(game);h.unshift({s:score,d:detail||'',w:x.win===undefined?null:x.win,l:x.lvl,t});LS.set('arc_hist_'+game,h.slice(0,30));
  if(x.win===1||x.win===0){const r=LS.get('arc_rec_'+game,{w:0,l:0});x.win?r.w++:r.l++;LS.set('arc_rec_'+game,r)}
  if(!score){if(x.win===0)setTimeout(()=>toast('RESULT SAVED','Loss recorded. See SCORES.','#9a8fb0'),600);return 0}
@@ -116,7 +117,7 @@ function submit(game,score,detail,x){
  list.push(e);list.sort((a,b)=>b.s-a.s||a.t-b.t);const top=list.slice(0,10),rank=top.indexOf(e)+1;
  LS.set(lbKey(game,mode),top);
  const send=()=>sendRemote(game,mode,score,detail);
- if(rank&&!name())setTimeout(()=>askName(rank,score,game,mode,t,send),700);
+ if(rank&&!name())setTimeout(()=>whenIdle(()=>askName(rank,score,game,mode,t,send)),700);
  else{if(rank)setTimeout(()=>toast(rank===1?'NEW HIGH SCORE!':'THIS DEVICE #'+rank,score+' '+(GAMES[game]?.unit||''),'#00e436'),700);else if(x.win===0)setTimeout(()=>toast('RESULT SAVED',score+' '+(GAMES[game]?.unit||'')+' · see SCORES','#9a8fb0'),600);send()}
  return rank;
 }
@@ -135,6 +136,9 @@ async function remoteTop(game,mode,scope,period){
 function name(){return (LS.get('arc_name','')||'').slice(0,12)}
 const clean=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9 _.-]/g,'').trim().slice(0,12);
 function setName(v){v=clean(v);LS.set('arc_name',v);if(v)setTimeout(()=>unlock('named'),300);return v}
+let busyFn=()=>false;
+function setBusy(fn){busyFn=fn||(()=>false)}
+function whenIdle(fn){const go=()=>{let b=false;try{b=busyFn()}catch(e){}if(b||document.hidden||document.querySelector('.arc-ov'))setTimeout(go,500);else fn()};go()}
 function askName(rank,score,game,mode,t,after){
  const ov=modal(`<h2>${rank===1?'NEW HIGH SCORE!':'YOU MADE THE BOARD'}</h2><p class="arc-big">#${rank} · ${score}</p><p>Enter your name for the leaderboard.</p>
   <input id="arcNameIn" maxlength="12" autocomplete="nickname" autocapitalize="characters" spellcheck="false" placeholder="YOUR NAME" aria-label="Your name">
@@ -244,7 +248,8 @@ html.arc-touch-off #controls{display:none!important}
 #base,#fire,#fireB,#jumpB,#enterB{scale:var(--arc-ctl,1)}
 html.arc-lefty #stick{left:auto!important;right:0!important}
 html.arc-lefty #fireB{right:auto!important;left:4%!important}
-html.arc-lefty #jumpB{right:auto!important;left:calc(4% + 104px)!important}
+html.arc-lefty #jumpB{right:auto!important;left:calc(4% + 16px + 88px * var(--arc-ctl,1))!important}
+html:not(.arc-lefty) #jumpB{right:calc(4% + 16px + 88px * var(--arc-ctl,1))!important}
 html.arc-lefty #fire{right:auto!important;left:6%!important}
 @media (prefers-reduced-motion:reduce){.arc-toast{transition:none}}
 `;
@@ -309,5 +314,5 @@ function addGear(){document.querySelectorAll('a[href="index.html"]').forEach(a=>
 function ready(fn){document.readyState==='loading'?document.addEventListener('DOMContentLoaded',fn):fn()}
 ready(()=>{apply();if(GAME)addGear()});
 
-window.ARC={audioCtxs:()=>[...ctxs].map(c=>c.state),testSound,VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
+window.ARC={setBusy,audioCtxs:()=>[...ctxs].map(c=>c.state),testSound,VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
 })();

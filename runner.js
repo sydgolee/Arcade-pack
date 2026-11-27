@@ -11,10 +11,10 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden}
 body{font:20px/1.15 "VT323",ui-monospace,monospace;touch-action:none;user-select:none;-webkit-user-select:none;background:${TH.pageBg}}
 #app{display:flex;flex-direction:column;align-items:center;height:100%;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
-#hud{width:var(--gw);display:flex;align-items:center;gap:8px;padding:2px 0 8px;font:9px "Press Start 2P",monospace}
-#hud a{color:var(--dim);text-decoration:none;padding:12px 8px;font-size:12px}
-#hearts{color:var(--red);font-size:14px;white-space:nowrap}#dist{flex:1;text-align:center;color:var(--gold);white-space:nowrap}#ammo{color:var(--accent);white-space:nowrap}
-.ib{font:9px "Press Start 2P",monospace;background:var(--stone);color:var(--ink);border:2px solid #000;box-shadow:inset 0 -3px 0 #000;height:32px;min-width:34px;cursor:pointer}
+#hud{width:var(--gw);display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:2px 0 8px;font:9px "Press Start 2P",monospace}
+#hud a{color:var(--dim);text-decoration:none;font-size:12px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+#hearts{color:var(--red);font-size:14px;white-space:nowrap}#dist{flex:1;text-align:center;color:var(--gold);white-space:nowrap}#ammo{color:var(--accent);white-space:nowrap;order:10;flex:1 1 auto;padding-left:52px;min-height:10px;overflow:hidden}#hud .ib{order:11}#dist{flex:1 0 55%!important}
+.ib{font:9px "Press Start 2P",monospace;background:var(--stone);color:var(--ink);border:2px solid #000;box-shadow:inset 0 -3px 0 #000;height:44px;min-width:44px;cursor:pointer}
 #stage{position:relative;width:var(--gw);height:var(--gh);background:#000;box-shadow:0 0 0 4px #000,0 0 0 8px #2a2535}
 #game{width:100%;height:100%;display:block;image-rendering:pixelated}
 #banner{position:absolute;left:0;right:0;top:34%;text-align:center;font:clamp(12px,calc(var(--gw) / 34),26px) "Press Start 2P",monospace;color:var(--gold);text-shadow:2px 2px 0 #000;opacity:0;transition:opacity .25s;pointer-events:none}#banner.on{opacity:1}
@@ -39,7 +39,7 @@ body{font:20px/1.15 "VT323",ui-monospace,monospace;touch-action:none;user-select
 .btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 </style>`);
 document.body.innerHTML=`<div id="app">
- <div id="hud"><a href="index.html">◀</a><span id="hearts"></span><span id="dist">0m</span><span id="ammo"></span><button class="ib" id="auto" aria-pressed="false">AUTO</button><button class="ib" id="snd">SND</button><button class="ib" id="pz">II</button></div>
+ <div id="hud"><a href="index.html" id="hudBack" aria-label="Back to the game pack">◀</a><span id="hearts"></span><span id="dist">0m</span><span id="ammo"></span><button class="ib" id="auto" aria-pressed="false">AUTO</button><button class="ib" id="snd">SND</button><button class="ib" id="pz">II</button></div>
  <div id="stage"><canvas id="game"></canvas><div id="banner"></div></div>
  <div id="power"></div>
  <div id="keys">A/D move · W aim up · S duck · Space jump · J or K fire · E enter door · P pause</div>
@@ -85,7 +85,7 @@ const RW=TH.rideWin||[300,650];const rideAt=m=>!!TH.ride&&m>=RW[0]&&(m%1000)>=RW
 const WH={H:'7',S:'7',B:'7',R:'7',L:'7',K:'7',G:'7',X:'7',N:'7',M:'7',W:'7','0':'7','1':'7','4':'7','5':'7','9':'7',c:'7',a:'7'};
 
 /* ---------- audio ---------- */
-let ac=null,master=null,muted=!!store.get('run_mute'),voices=0;
+let ac=null,master=null,muted=window.ARC?!ARC.settings().sound:!!store.get('run_mute'),voices=0;
 function audio(){if(ac)return ac;try{ac=new(window.AudioContext||window.webkitAudioContext)();master=ac.createGain();master.gain.value=.9;master.connect(ac.createDynamicsCompressor()).connect(ac.destination)}catch(e){ac=null}return ac}
 addEventListener('pointerdown',()=>{audio();if(ac&&ac.state==='suspended')ac.resume()});
 function tone(f,t,d,type,v,sl){const o=ac.createOscillator(),gn=ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+sl),t+d);gn.gain.setValueAtTime(v,t);gn.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(gn).connect(master);o.start(t);o.stop(t+d+.02);return o}
@@ -206,7 +206,7 @@ function update(){S.t++;
  const zi=Math.min(TH.zones.length-1,Math.floor(meters(p.x)/500));if(zi!==S.zone){S.zone=zi;banner(TH.zones[zi])}
  if(!S.heartDrop&&meters(p.x)>=S.nextBoss-25){S.heartDrop=true;S.items.push({k:'heart',x:p.x+40,y:GY-40,vy:0,life:900})}
  if(!S.boss&&meters(p.x)>=S.nextBoss){spawnBoss();S.nextBoss+=TH.bossGap+S.bossN*400;if(rideAt(S.nextBoss))S.nextBoss=Math.floor(S.nextBoss/1000)*1000+RW[1]+30;S.heartDrop=false}
- if(!S.boss){S.spawnT-=1+Math.max(0,p.vx)*.6;if(S.spawnT<=0){spawn();S.spawnT=Math.max(40,125-d*40)*R(.7,1.2)*(S.p.ride?.6:1)}}
+ if(!S.boss){S.spawnT-=1+Math.max(0,p.vx)*.6;if(S.spawnT<=0){spawn();S.spawnT=Math.max(34,92-d*40)*R(.7,1.15)*(S.p.ride?.6:1)}}
  // enemies
  for(const e of S.en){if(e.dead)continue;e.anim++;if(e.flash)e.flash--;
   const dx=p.x-e.x,ad=Math.abs(dx);
@@ -222,7 +222,7 @@ function update(){S.t++;
   else if(e.k==='boss')bossAI(e,p,dx);
   if(e.summ&&S.lockX!==null)e.x=Math.max(S.lockX+6,e.x);
   if(e.k!=='sniper'&&!e.summ&&e.x<S.cam-40)e.dead=true;
-  if(p.ride&&!e.dead&&(e.k==='gun'||e.k==='thrower')){const r=pRect(),er=eRect(e);if(r[0]<er[0]+er[2]&&r[0]+r[2]>er[0]&&r[1]<er[1]+er[3]){kill(e);S.score+=10;S.shake=(window.ARC?ARC.fx(3):3);continue}}
+  if(p.ride&&!e.dead&&(e.k==='gun'||e.k==='thrower')){const r=pRect(),er=eRect(e);if(r[0]<er[0]+er[2]&&r[0]+r[2]>er[0]&&r[1]<er[1]+er[3]){kill(e);S.score+=2;S.shake=(window.ARC?ARC.fx(3):3);continue}}
   if(!e.dead&&e.k!=='sniper'&&(p.ride?(()=>{const r=pRect(),er=eRect(e);return r[0]<er[0]+er[2]&&r[0]+r[2]>er[0]&&r[1]<er[1]+er[3]})():inR(p.x,p.y-4,eRect(e)))&&e.k!=='thrower'&&e.k!=='gun'){hurt(TH.names[e.k]);if(e.k==='boss')p.x=Math.max((S.lockX??S.cam)+4,p.x-16)}}
  // bombs
  for(const b of S.bombs){if(b.fuse===undefined){b.x+=b.vx;b.y+=b.vy;b.vy+=.1;if(b.y>=GY-1){b.y=GY-1;b.vx=0;b.vy=0;b.fuse=34}}
@@ -243,7 +243,7 @@ function update(){S.t++;
  S.props=S.props.filter(q=>q.x+q.w>S.cam-20&&q.hp>0);S.decor=S.decor.filter(d=>d.x>S.cam-60);
  {const sk=skyAt(meters(S.cam+72));if(sk.name!==S.phase){if(S.phase)banner(sk.name);S.phase=sk.name}}S.plats=S.plats.filter(q=>q.x+q.w>S.cam-20);S.bld=S.bld.filter(b=>b.x+b.w>S.cam-80);
  hud()}
-function aimAssist(x,y,dir,up){let best=null,bd=1e9;for(const e of S.en){if(e.dead||(e.k==='sniper'&&e.st===0))continue;if(up&&e.k!=='sniper')continue;const r=eRect(e),tx=r[0]+r[2]/2,ty=r[1]+r[3]/2,dx=tx-x;if(Math.sign(dx)!==dir||Math.abs(dx)>170)continue;
+function aimAssist(x,y,dir,up){let best=null,bd=1e9;for(const e of S.en){if(e.dead||(e.k==='sniper'&&e.st===0))continue;if(up&&e.k!=='sniper')continue;const r=eRect(e),tx=r[0]+r[2]/2,ty=r[1]+r[3]/2,dx=tx-x;if(Math.sign(dx)!==dir||Math.abs(dx)>(autoF?115:150))continue;
  const base=up?(dir>0?-.5:Math.PI+.5):(dir>0?0:Math.PI),a=Math.atan2(ty-y,dx),off=Math.abs(Math.atan2(Math.sin(a-base),Math.cos(a-base)));if(off>(up?.8:.55))continue;const dd=Math.abs(dx)+off*80;if(dd<bd){bd=dd;best=a}}return best}
 function lob(e){const p=S.p,dx=p.x+p.vx*30-e.x,T=52;S.bombs.push({x:e.x,y:e.y-12,vx:dx/T,vy:-2.6,tx:e.x+dx});beep(500,.1,'triangle',.03,-200)}
 function bossAI(e,p,dx){e.face=dx<0?-1:1;const lx=S.lockX;if(p.x>e.x-12){p.x=e.x-12}
@@ -289,7 +289,7 @@ function render(){const t=S?S.t:performance.now()/16|0,cam=S?S.cam:0,sky=skyAt(S
  g.setTransform(1,0,0,1,0,0);
  if(S&&TH.overlay)TH.overlay(g,W,H,t,sky);
  if(S&&S.inside){g.fillStyle='rgba(0,0,0,.35)';g.fillRect(0,0,W,H);const s2='SAVING...';PXT(g,s2,W/2-PXT.w(s2)/2,40,'#ffec27')}
- if(S&&S.boss){const b=S.boss;g.fillStyle='#000';g.fillRect(30,3,W-60,4);g.fillStyle='#ff004d';g.fillRect(31,4,Math.max(0,(W-62)*b.hp/b.mhp),2)}
+ if(S&&S.boss){const b=S.boss;g.fillStyle='#000';g.fillRect(30,9,W-60,4);g.fillStyle='#ff004d';g.fillRect(31,10,Math.max(0,(W-62)*b.hp/b.mhp),2);const bn=(TH.bossName||'BOSS').replace(/^BOSS: /,'');PXT(g,bn,W/2-PXT.w(bn)/2,2,'#fff1e8')}
  if(S&&TH.weapon.heat&&S.mode==='play'){const p=S.p,hx=4,hy=H-8;g.fillStyle='#000';g.fillRect(hx,hy,42,5);g.fillStyle=p.over>0?((S.t>>2)%2?'#ff004d':'#ffa300'):p.heat>.7?'#ff004d':p.heat>.45?'#ffa300':'#29adff';g.fillRect(hx+1,hy+1,Math.round(40*(p.over>0?1:p.heat)),3)}
  if(S&&S.flash>0){g.fillStyle='rgba(255,241,232,.3)';g.fillRect(0,0,W,H)}}
 
@@ -302,7 +302,7 @@ let hk='';function hud(force){if(!S)return;const p=S.p,Wp=TH.weapon,m=meters(p.x
  $('power').textContent=(p.rapid>0?TH.items.rapid+' '+Math.ceil(p.rapid/60)+'s  ':'')+(p.spread>0?TH.items.spread+' '+Math.ceil(p.spread/60)+'s':'')}
 function show(id){for(const o of document.querySelectorAll('.ov'))o.classList.toggle('on',o.id===id)}
 function togglePause(force){if(!S||S.mode!=='play')return;paused=force===true?true:!paused;show(paused?'pause':null)}
-function die(){S.mode='dead';const m=meters(S.p.x),score=S.score+m,b=store.get(TH.key)||{m:0,s:0},nb=!S.cont&&score>b.s;store.set(TH.key,{m:Math.max(b.m,m),s:S.cont?b.s:Math.max(b.s,score)});if(window.ARC)ARC.submit(TH.key.split('_')[0],S.cont?0:score,m+'m · '+S.kills+' '+TH.killWord,{m});
+function die(){S.mode='dead';const m=meters(S.p.x),score=S.score+m,b=store.get(TH.key)||{m:0,s:0},nb=score>b.s;store.set(TH.key,{m:Math.max(b.m,m),s:Math.max(b.s,score)});if(window.ARC)ARC.submit(TH.key.split('_')[0],score,m+'m · '+S.kills+' '+TH.killWord+(S.cont?' · from a save':''),{m});
  $('dc').innerHTML=`<span style="color:var(--gold)">${m}m</span> · ${S.kills} ${TH.killWord} · score ${score}<br>Taken down by <span style="color:var(--gold)">${S.killer}</span>.`;
  $('db').textContent=(S.cont?'Continued run: distance counts, score does not. ':'')+(nb?'NEW BEST SCORE!':`Best: ${b.s} (furthest ${Math.max(b.m,m)}m)`);const sv=store.get(SAVEK);$('again2').style.display=sv?'':'none';if(sv)$('again2').textContent=`CONTINUE FROM ${meters(sv.x)}M`;$('enterB').classList.remove('on');show('dead')}
 function menu(){S=null;paused=false;$('enterB').classList.remove('on');const sv=store.get(SAVEK);$('cont').style.display=sv?'':'none';if(sv)$('cont').textContent=`CONTINUE FROM ${meters(sv.x)}M`;const b=store.get(TH.key);$('bestL').textContent=b?`Best score ${b.s} · furthest ${b.m}m`:'';
@@ -310,7 +310,10 @@ function menu(){S=null;paused=false;$('enterB').classList.remove('on');const sv=
 $('play').addEventListener('click',()=>newRun());$('again').addEventListener('click',()=>newRun());
 const cont=()=>{const sv=store.get(SAVEK);if(sv)newRun(sv)};$('cont').addEventListener('click',cont);$('again2').addEventListener('click',cont);$('menu').addEventListener('click',menu);$('quit').addEventListener('click',menu);$('res').addEventListener('click',()=>togglePause());$('pz').addEventListener('click',()=>togglePause());
 const autoUI=()=>{$('auto').style.background=autoF?'var(--accent)':'';$('auto').style.color=autoF?'#000':'';$('auto').setAttribute('aria-pressed',autoF)};autoUI();$('auto').addEventListener('click',()=>{autoF=!autoF;store.set('run_auto',autoF);autoUI();banner(autoF?'AUTO-FIRE ON':'AUTO-FIRE OFF')});
-$('snd').textContent=muted?'OFF':'SND';$('snd').addEventListener('click',()=>{muted=!muted;store.set('run_mute',muted);$('snd').textContent=muted?'OFF':'SND'});
+$('snd').textContent=muted?'OFF':'SND';$('snd').addEventListener('click',()=>{muted=!muted;if(window.ARC)ARC.set('sound',!muted);else store.set('run_mute',muted);$('snd').textContent=muted?'OFF':'SND'});
+addEventListener('arcsettings',e=>{muted=!e.detail.sound;$('snd').textContent=muted?'OFF':'SND'});
+$('hudBack').addEventListener('click',e=>{if(!S||S.mode!=='play'||!window.ARC)return;e.preventDefault();togglePause(true);const o=ARC.modal(`<h2>LEAVE THIS RUN?</h2><p>Anything since your last save is lost.</p><div class="arc-row"><button class="arc-b arc-ghost" data-x>KEEP PLAYING</button><button class="arc-b" id="lvY">LEAVE</button></div>`);o.querySelector('#lvY').onclick=()=>{location.href='index.html'}});
+if(window.ARC)ARC.setBusy(()=>!!S&&S.mode==='play'&&!paused);
 function fit(){const touch=matchMedia('(pointer:coarse)').matches;document.body.classList.toggle('touch',touch);const aw=Math.min(innerWidth-24,1100),ah=innerHeight-(touch?300:140);let s=Math.min(aw/W,ah/H);s=s>=2?Math.floor(s):Math.max(1,s);
  document.documentElement.style.setProperty('--gw',Math.floor(W*s)+'px');document.documentElement.style.setProperty('--gh',Math.floor(H*s)+'px')}
 addEventListener('resize',fit);fit();menu();

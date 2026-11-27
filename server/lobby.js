@@ -46,7 +46,7 @@ export class Lobby {
     server.serializeAttachment({ pid, name, country });
     const mine = Object.values(st.cups).find(c => c.status !== 'done' && c.players.some(p => p.pid === pid))
       || Object.values(st.cups).filter(c => c.players.some(p => p.pid === pid)).sort((a, b) => b.created - a.created)[0];
-    server.send(JSON.stringify({ t: 'hi', n: this.online(), cup: mine ? this.pub(mine) : null, now: Date.now() }));
+    server.send(JSON.stringify({ t: 'hi', n: this.online(), cup: mine ? this.pub(mine) : null, play: mine ? this.livePlay(mine, pid) : null, now: Date.now() }));
     this.broadcastOnline();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -61,7 +61,7 @@ export class Lobby {
     if (d.k === 'quick') this.quick(me);
     else if (d.k === 'cancel') { st.queue = st.queue.filter(q => q.pid !== me.pid); this.leaveSignup(me.pid); }
     else if (d.k === 'cup') this.joinCup(me, d.size === 32 ? 32 : 8);
-    else if (d.k === 'result') this.result(me.pid, d);
+    else if (d.k === 'result') await this.result(me.pid, d);
     else if (d.k === 'leave') this.forfeitAll(me.pid);
     await this.save();
     await this.arm();
@@ -133,10 +133,22 @@ export class Lobby {
     }
     if (this.st.pending[cup.size] === cup.tid) delete this.st.pending[cup.size];
   }
+  livePlay(cup, pid) {
+    if (cup.status !== 'live') return null;
+    for (const ms of cup.rounds) for (const m of ms) {
+      if (m.status !== 'live' || m.a == null || m.b == null) continue;
+      const A = cup.players[m.a], B = cup.players[m.b];
+      if (A.pid !== pid && B.pid !== pid) continue;
+      const me = A.pid === pid ? A : B, O = A.pid === pid ? B : A, round = ROUND_NAMES[ms.length * 2];
+      if (O.cpu) return { t: 'play', tid: cup.tid, match: m.id, vs: 'cpu', lvl: m.lvl, opp: O.name, round, resume: 1 };
+      return { t: 'play', tid: cup.tid, match: m.id, vs: 'human', code: m.code, opp: O.name, country: O.country, round, resume: 1 };
+    }
+    return null;
+  }
   pub(cup) {
     return {
       tid: cup.tid, size: cup.size, status: cup.status, deadline: cup.deadline, champion: cup.champion,
-      players: cup.players.map(p => ({ name: p.name, c: p.country, cpu: p.cpu, pid: p.cpu ? null : p.pid })),
+      players: cup.players.map(p => ({ name: p.name, c: p.country, cpu: p.cpu, pid: p.cpu ? null : p.pid, out: !!p.out, left: !!p.left })),
       rounds: cup.rounds.map(ms => ms.map(m => ({ id: m.id, r: m.r, a: m.a, b: m.b, s: m.status, w: m.w, sc: m.score, at: m.startAt || 0 }))),
       names: cup.rounds.map(ms => ROUND_NAMES[ms.length * 2]), now: Date.now()
     };
@@ -169,8 +181,8 @@ export class Lobby {
           continue;
         }
         if (m.status === 'ready' && now >= m.startAt) {
-          m.status = 'live'; changed = true;
-          const lvl = CPU_LVL[ms.length * 2] ?? 1;
+          m.status = 'live'; m.liveAt = now; changed = true;
+          const lvl = CPU_LVL[ms.length * 2] ?? 1; m.lvl = lvl;
           if (!A.cpu && !B.cpu) {
             m.code = code(5); m.deadline = now + 40 * 60e3;
             this.sendTo(A.pid, { t: 'play', tid: cup.tid, match: m.id, vs: 'human', code: m.code, opp: B.name, country: B.country, round: ROUND_NAMES[ms.length * 2] });
@@ -185,7 +197,7 @@ export class Lobby {
         if (m.status === 'live') {
           if (A.cpu && B.cpu) { if (now >= m.endAt) { this.win(cup, m, Math.random() < .5 ? m.a : m.b, 'cpu'); changed = true; } continue; }
           // a reported human vs human result waits up to 45 s for the second report
-          if (m.rep && m.repAt && now - m.repAt > 45000) { const [pid, win] = Object.entries(m.rep)[0]; this.win(cup, m, this.slotOf(cup, m, pid, win), 'reported'); changed = true; continue; }
+          if (m.rep && m.repAt && now - m.repAt > 45000) { const [pid, win] = Object.entries(m.rep)[0]; this.win(cup, m, m.verdict != null ? m.verdict : this.slotOf(cup, m, pid, win), 'reported'); changed = true; continue; }
           // gone for 90 s, or the match ran past its time limit
           const gone = s => { const p = cup.players[s]; return !p.cpu && !this.sockets(p.pid).length && now - ((st.seen[p.pid] || {}).at || 0) > 90000; };
           const ga = gone(m.a), gb = gone(m.b);
@@ -208,22 +220,40 @@ export class Lobby {
     return win ? (isA ? m.a : m.b) : (isA ? m.b : m.a);
   }
   find(cup, id) { for (const ms of cup.rounds) for (const m of ms) if (m.id === id) return m; return null; }
-  result(pid, d) {
+  async result(pid, d) {
     const cup = this.st.cups[String(d.tid || '')]; if (!cup || cup.status !== 'live') return;
     const m = this.find(cup, String(d.match || '')); if (!m || m.status !== 'live') return;
     const A = cup.players[m.a], B = cup.players[m.b];
     if (A.pid !== pid && B.pid !== pid) return;
     const win = !!d.win, sc = String(d.score || '').slice(0, 24);
-    if (A.cpu || B.cpu) { this.win(cup, m, this.slotOf(cup, m, pid, win), sc); this.pushCup(cup); return; }
+    if (A.cpu || B.cpu) {
+      // a real game against the CPU takes time: a win reported in the first 15 s is ignored
+      if (win && Date.now() - (m.liveAt || 0) < 15000) { this.sendTo(pid, { t: 'reject', why: 'Too quick. Finish the match first.' }); return; }
+      this.win(cup, m, this.slotOf(cup, m, pid, win), sc); this.pushCup(cup); return;
+    }
+    // human vs human: the room referee decides when it can (Wall Maze, Fleet Strike, forfeits)
+    if (m.verdict == null && m.code) {
+      try {
+        const r = await this.env.ROOMS.get(this.env.ROOMS.idFromName(m.code)).fetch('https://room/verdict');
+        const j = await r.json();
+        if (j.winner === 0 || j.winner === 1) {
+          const seatPid = await this.seatPid(m.code, j.winner);
+          if (seatPid) m.verdict = cup.players[m.a].pid === seatPid ? m.a : m.b;
+        }
+      } catch {}
+    }
+    if (m.verdict != null) { this.win(cup, m, m.verdict, sc); this.pushCup(cup); return; }
     m.rep = m.rep || {}; m.rep[pid] = win; m.repAt = m.repAt || Date.now();
     const vals = Object.entries(m.rep);
     if (vals.length === 2) {
       const [[p1, w1], [p2, w2]] = vals;
-      // agree, or trust whoever admits the loss
       const winnerSlot = w1 !== w2 ? this.slotOf(cup, m, p1, w1) : (!w1 ? this.slotOf(cup, m, p2, true) : this.slotOf(cup, m, p1, true));
       this.win(cup, m, winnerSlot, sc);
     } else if (!win) { this.win(cup, m, this.slotOf(cup, m, pid, false), sc); }
     this.pushCup(cup);
+  }
+  async seatPid(code, seat) {
+    try { const r = await this.env.ROOMS.get(this.env.ROOMS.idFromName(code)).fetch('https://room/seats'); const j = await r.json(); return j.seats ? j.seats[seat] : null; } catch { return null; }
   }
   forfeitAll(pid) {
     for (const cup of Object.values(this.st.cups)) {
@@ -251,8 +281,8 @@ export class Lobby {
       const champ = cup.players[slot];
       cup.champion = slot;
       if (!champ.cpu && this.env.DB) {
-        this.ctx.waitUntil(this.env.DB.prepare('INSERT INTO champions (game, size, name, country, created_at) VALUES (?1,?2,?3,?4,?5)')
-          .bind(this.st.game || '', cup.size, champ.name, champ.country || '', Date.now()).run().catch(() => {}));
+        this.ctx.waitUntil(this.env.DB.prepare('INSERT INTO champions (game, size, name, country, created_at, player) VALUES (?1,?2,?3,?4,?5,?6)')
+          .bind(this.st.game || '', cup.size, champ.name, champ.country || '', Date.now(), champ.pid).run().catch(e => console.log('champion insert failed', String(e))));
       }
     }
   }

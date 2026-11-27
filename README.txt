@@ -1,9 +1,16 @@
-8-BIT ARCADE PACK v1.0.0
+8-BIT ARCADE PACK v1.4.0
 Six free 8-bit browser games by Syd Golee.
 
-Upload every file and folder here, as-is, to any static web host
-(GitHub Pages, Netlify, itch.io as an HTML game). Open index.html.
+Live: https://arcade-pack.s-golee.workers.dev  (also https://sydgolee.github.io/Arcade-pack/)
 
-Pages: index (games), scores, awards, settings, about, privacy, 404.
-Shared code: arcade.js (settings, leaderboards, awards), shell.js (tab bar), site.css.
-All player data stays in the browser's local storage. No server, no tracking.
+Front end: plain HTML/JS pages served from GitHub Pages and proxied by the Cloudflare Worker.
+Pages: index (games), scores, trophies, settings, about, privacy, 404.
+Shared code: arcade.js (settings, sound, trophies, leaderboards), net.js (online play),
+cup.js (Quick Match + tournaments), shell.js (tab bar), site.css.
+
+Server (server/): Cloudflare Worker + D1 (leaderboards, Hall of Champions) +
+Durable Objects: Room (referees online games, keeps fleets secret) and Lobby
+(players online, Quick Match, tournaments). Deploys automatically from this repo.
+
+Saves and settings stay in the browser. Online features send only the player name,
+a random player ID, country and scores/moves. See privacy.html.

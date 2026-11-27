@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <script>if("serviceWorker" in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script>
@@ -89,7 +89,7 @@ canvas{display:block;touch-action:none}
 
 <script>
 {
-let online=null,replaying=false;
+let online=null,replaying=false,intro='';
 const $=id=>document.getElementById(id),N=9;
 const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let ac=null;function beep(f,d=.08,type='square',v=.04,sl=0){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+sl),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
@@ -159,14 +159,14 @@ function layout(){const aw=Math.min(innerWidth-16,620),ah=innerHeight-215;BW=Mat
  C=Math.floor(BW/(9+8*.24));Gp=Math.floor(C*.24);BW=9*C+8*Gp;dpr=Math.min(3,devicePixelRatio||1);
  cv.width=BW*dpr;cv.height=BW*dpr;cv.style.width=BW+'px';cv.style.height=BW+'px';document.documentElement.style.setProperty('--bw',BW+'px');draw()}
 const cx=x=>x*(C+Gp);
-function draw(){if(!S)return;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#3a1a14';g.fillRect(0,0,BW,BW);
+const flipped=()=>!!(online&&online.seat===1);
+function draw(){if(!S)return;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#3a1a14';g.fillRect(0,0,BW,BW);const F=flipped();g.save();if(F){g.translate(BW,BW);g.rotate(Math.PI)}
  const pm=!busy&&isHumanTurn()&&mode==='move'?pawnMoves(S,S.turn):[];
  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const X=cx(x),Y=cx(y),goal=(y===0)||(y===8);
   g.fillStyle=(x+y)%2?'#7a3b22':'#93502e';g.fillRect(X,Y,C,C);
-  if(goal){g.fillStyle=y===0?'rgba(41,173,255,.22)':'rgba(255,0,77,.22)';g.fillRect(X,Y,C,C)}
+  if(goal){g.fillStyle=y===0?'rgba(41,173,255,.6)':'rgba(255,0,77,.45)';g.fillRect(X,Y,C,C)}
   g.fillStyle='rgba(0,0,0,.25)';g.fillRect(X,Y+C-3,C,3)}
  g.font=`${Math.max(7,Math.round(C*.17))}px "Press Start 2P",monospace`;g.textAlign='center';g.textBaseline='middle';
- g.fillStyle='rgba(41,173,255,.5)';g.fillText(pvp?'BLUE GOAL':'YOUR GOAL',BW/2,cx(0)+C*.82);g.fillStyle='rgba(255,0,77,.5)';g.fillText(pvp?'RED GOAL':'CPU GOAL',BW/2,cx(8)+C*.18);
  for(const[x,y]of pm){g.fillStyle='rgba(255,236,39,.35)';g.fillRect(cx(x)+3,cx(y)+3,C-6,C-6);g.strokeStyle='#ffec27';g.lineWidth=2;g.strokeRect(cx(x)+3,cx(y)+3,C-6,C-6)}
  const wall=(o,x,y,col,a=1)=>{g.globalAlpha=a;g.fillStyle=col;if(o==='h')g.fillRect(cx(x)-1,cx(y)+C,C+2,Gp);else g.fillRect(cx(x)+C,cx(y)-1,Gp,C+2);
   g.fillStyle='rgba(255,255,255,.35)';if(o==='h')g.fillRect(cx(x)-1,cx(y)+C,C+2,2);else g.fillRect(cx(x)+C,cx(y)-1,2,C+2);g.globalAlpha=1};
@@ -181,17 +181,23 @@ function draw(){if(!S)return;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#3a1a1
   g.fillStyle=pi===0?'#29adff':'#ff004d';g.beginPath();g.arc(X,Y,r,0,7);g.fill();
   g.fillStyle=pi===0?'#c2f0ff':'#ffb3c8';g.beginPath();g.arc(X-r*.3,Y-r*.3,r*.3,0,7);g.fill();
   if(S.turn===pi&&winner(S)<0){g.strokeStyle='#fff1e8';g.lineWidth=2;g.beginPath();g.arc(X,Y,r+4,0,7);g.stroke()}};
- pawn(0);pawn(1)}
+ pawn(0);pawn(1);g.restore();
+ // goal labels: upright, in the corner away from the starting pawns
+ g.font=`${Math.max(7,Math.round(C*.16))}px "Press Start 2P",monospace`;g.textAlign='left';g.textBaseline='middle';
+ const lab=(t,y,col)=>{const w=g.measureText(t).width;g.fillStyle='rgba(0,0,0,.55)';g.fillRect(3,y-C*.16,w+8,C*.32);g.fillStyle=col;g.fillText(t,7,y)};
+ const topT=online?'YOUR GOAL':pvp?'BLUE GOAL':'YOUR GOAL',botT=online?'THEIR GOAL':pvp?'RED GOAL':'CPU GOAL';
+ lab('▲ '+topT,cx(0)+C*.22,F?'#ff6b8f':'#5fc4ff');lab('▼ '+botT,cx(8)+C*.78,F?'#5fc4ff':'#ff6b8f')}
 function isHumanTurn(){return online?S.turn===online.seat:(pvp||S.turn===0)}
 function ui(){const w=winner(S);
- for(const pi of[0,1]){$('w'+pi).innerHTML=Array.from({length:10},(_,i)=>`<i class="${i<S.walls[pi]?'':'u'}"></i>`).join('');$('d'+pi).textContent=dist(S,pi)+' steps to go'}
- $('n1').textContent=online?(online.seat===1?'YOU':online.them):pvp?'PLAYER 2':'CPU';$('n0').textContent=online?(online.seat===0?'YOU':online.them):pvp?'PLAYER 1':'YOU';
+ const F=flipped();for(const pi of[0,1]){const el=F?1-pi:pi,d=dist(S,pi);$('w'+el).innerHTML=Array.from({length:10},(_,i)=>`<i class="${i<S.walls[pi]?'':'u'}"></i>`).join('');$('d'+el).textContent=d+(d===1?' step to go':' steps to go')}
+ $('n0').className='who '+(F?'p1':'p0');$('n1').className='who '+(F?'p0':'p1');
+ $('n1').textContent=online?online.them:pvp?'PLAYER 2':'CPU';$('n0').textContent=online?'YOU':pvp?'PLAYER 1':'YOU';
  $('turn').textContent=w>=0?'GAME OVER':online?(S.turn===online.seat?'YOUR TURN':online.them+'\'S TURN'):busy?'CPU THINKING…':pvp?(S.turn===0?'BLUE TO PLAY':'RED TO PLAY'):'YOUR TURN';
  $('mMove').classList.toggle('on',mode==='move');$('mMove').classList.toggle('ghost',mode!=='move');
  $('mWall').classList.toggle('on',mode==='wall');$('mWall').classList.toggle('ghost',mode!=='wall');
  $('mWall').disabled=S.walls[S.turn]<=0||!isHumanTurn()||busy;$('rot').disabled=$('mWall').disabled;$('rot').textContent=ori==='h'?'⟲ ─':'⟲ │';
  $('undo').disabled=!hist.length||busy;
- $('msg').textContent=w>=0?'':busy?'':mode==='move'?'Tap a glowing square to move.':ghost?(canWall(S,S.turn,ghost.o,ghost.x,ghost.y)?'Tap the blue wall again to place it, or tap elsewhere to move it.':'That wall overlaps or seals a route. Try another spot.'):'Tap between squares to preview a wall. ⟲ turns it.';
+ $('msg').textContent=w>=0?'':busy?'':intro&&online&&!started?intro:mode==='move'?'Tap a glowing square to move.':ghost?(canWall(S,S.turn,ghost.o,ghost.x,ghost.y)?'Tap the blue wall again to place it, or tap elsewhere to move it.':'That wall overlaps or seals a route. Try another spot.'):'Tap between squares to preview a wall. ⟲ turns it.';
  draw()}
 function commit(m){if(online&&!replaying&&m._r!==1&&!NET.send({k:'move',m:{t:m.t,x:m.x,y:m.y,o:m.o}}))return;started=true;hist.push(clone(S));if(hist.length>60)hist.shift();lastWall=m.t==='w'?m:null;if(m.t==='p'){const from=S.pos[S.turn].slice();lastPawn={pi:S.turn,from};anim={pi:S.turn,from,to:[m.x,m.y],t0:performance.now()};recent[S.turn].push(from.join(','));if(recent[S.turn].length>6)recent[S.turn].shift()}S=apply(S,m);ghost=null;
  m.t==='p'?beep(520,.06,'triangle',.05,120):beep(160,.12,'square',.05,-40);
@@ -207,7 +213,7 @@ function finish(w){if(online)return finishOnline(w);const rec=store.get('quor_re
   $('end').classList.add('on')},500)}
 function newGame(){clearTimeout(cpuT);S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(72),vw:new Uint8Array(72),turn:0};hist=[];mode='move';ghost=null;busy=false;lastWall=null;lastPawn=null;anim=null;recent=[[],[]];undoUsed=false;started=false;
  for(const o of document.querySelectorAll('.ov'))o.classList.remove('on');layout();ui()}
-cv.addEventListener('pointerdown',e=>{if(!S||busy||!isHumanTurn()||winner(S)>=0)return;const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+cv.addEventListener('pointerdown',e=>{if(!S||busy||!isHumanTurn()||winner(S)>=0)return;const r=cv.getBoundingClientRect(),F=flipped(),px=F?BW-(e.clientX-r.left):e.clientX-r.left,py=F?BW-(e.clientY-r.top):e.clientY-r.top;
  if(mode==='move'){const x=Math.floor(px/(C+Gp)),y=Math.floor(py/(C+Gp));if(pawnMoves(S,S.turn).some(([a,b])=>a===x&&b===y))commit({t:'p',x,y});else beep(110,.05)}
  else{const P=C+Gp,cl=(v,a)=>Math.max(0,Math.min(a,v));let x,y;if(ori==='h'){x=cl(Math.floor(px/P),8);y=cl(Math.round((py-C-Gp/2)/P),7)}else{x=cl(Math.round((px-C-Gp/2)/P),7);y=cl(Math.floor(py/P),8)}
   if(ghost&&ghost.x===x&&ghost.y===y&&ghost.o===ori){if(canWall(S,S.turn,ori,x,y))commit({t:'w',o:ori,x,y});else beep(110,.1)}
@@ -216,7 +222,7 @@ $('mMove').addEventListener('click',()=>{mode='move';ghost=null;ui()});
 $('mWall').addEventListener('click',()=>{mode='wall';ui()});
 $('rot').addEventListener('click',()=>{if($('rot').disabled){$('msg').textContent=S.walls[S.turn]<=0?'No walls left. Move your pawn.':'Wait for your turn.';return}ori=ori==='h'?'v':'h';if(ghost)ghost.o=ori;if(mode!=='wall')mode='wall';ui()});
 $('undo').addEventListener('click',()=>{if(!hist.length||busy)return;undoUsed=true;S=hist.pop();if(!pvp&&S.turn===1&&hist.length)S=hist.pop();ghost=null;lastWall=null;ui()});
-addEventListener('keydown',e=>{const D={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];if(D&&S&&!busy&&isHumanTurn()&&winner(S)<0){e.preventDefault();const[x,y]=S.pos[S.turn],opts=pawnMoves(S,S.turn).filter(([a,b])=>Math.sign(a-x)===D[0]||D[0]===0&&Math.sign(b-y)===D[1]);const m=opts.find(([a,b])=>(a-x)*D[0]+(b-y)*D[1]>0);if(m)commit({t:'p',x:m[0],y:m[1]});return}if(e.key==='r'||e.key==='R')$('rot').click();if(e.key==='w'||e.key==='W')$('mWall').click();if(e.key==='m'||e.key==='M')$('mMove').click()});
+addEventListener('keydown',e=>{let D={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];if(D&&flipped())D=[-D[0],-D[1]];if(D&&S&&!busy&&isHumanTurn()&&winner(S)<0){e.preventDefault();const[x,y]=S.pos[S.turn],opts=pawnMoves(S,S.turn).filter(([a,b])=>Math.sign(a-x)===D[0]||D[0]===0&&Math.sign(b-y)===D[1]);const m=opts.find(([a,b])=>(a-x)*D[0]+(b-y)*D[1]>0);if(m)commit({t:'p',x:m[0],y:m[1]});return}if(e.key==='r'||e.key==='R')$('rot').click();if(e.key==='w'||e.key==='W')$('mWall').click();if(e.key==='m'||e.key==='M')$('mMove').click()});
 const leave=()=>{if(!pvp&&inGame()){const r=store.get('quor_rec')||{w:0,l:0};r.l++;store.set('quor_rec',r)}};
 for(const b of document.querySelectorAll('[data-lvl]'))b.addEventListener('click',()=>{leave();lvl=+b.dataset.lvl;pvp=false;newGame()});
 $('pvp').addEventListener('click',()=>{leave();pvp=true;newGame()});
@@ -232,18 +238,19 @@ S={pos:[[4,8],[4,0]],walls:[10,10],hw:new Uint8Array(72),vw:new Uint8Array(72),t
 addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
 window.__q={get S(){return S},cpuMove,apply,pawnMoves,canWall,dist,winner};
 /* ---------- online play ---------- */
-function onlineNew(){newGame();pvp=true;mode='move';$('undo').style.display='none';ui();$('msg').textContent=online.seat===0?`You are BLUE (bottom) and move first. Reach the top row.`:`You are RED (top). Reach the bottom row. ${online.them} moves first.`}
+function onlineNew(first){newGame();pvp=true;mode='move';S.turn=first||0;$('undo').style.display='none';const col=online.seat===0?'BLUE':'RED';intro=`You are ${col}, at the bottom. Reach the top row. Coin toss: ${S.turn===online.seat?'you move first':online.them+' moves first'}.`;ui()}
 function finishOnline(w){if(!replaying&&window.ARC)ARC.submit('wallmaze',0,`vs ${online.them} (online)`,{win:w===online.seat?1:0,online:1});
  setTimeout(()=>{$('endT').textContent=w===online.seat?'YOU WIN':online.them+' WINS';$('endP').textContent=w===online.seat?`You beat ${online.them}.`:`Ask for a rematch!`;$('again').textContent='REMATCH';$('end').classList.add('on')},replaying?0:500)}
-$('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();NET.send({k:'reset'});onlineNew()},{capture:true});
+$('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();NET.send({k:'reset'})},{capture:true});
 for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('undo').style.display='';$('again').textContent='PLAY AGAIN'}},{capture:true});
 if(window.NET)NET.init({game:'wallmaze',
  myTurn(){return online&&S&&S.turn===online.seat&&winner(S)<0&&!$('end').classList.contains('on')?30:0},
  onTimeout(){if(!online)return;NET.send({k:'forfeit'});finishOnline(1-online.seat);setTimeout(()=>{$('endP').textContent='You ran out of time.'},600)},
- onStart(i){online=i;onlineNew()},
+ inProgress(){return !!online&&!!S&&winner(S)<0&&!$('end').classList.contains('on')},
+ onStart(i){online=i;onlineNew(i.first)},
  onMsg(from,d,replay){if(!online)return;replaying=replay;try{
-  if(d.k==='reset'){onlineNew();return}
-  if(d.k==='forfeit'){if(from!==online.seat){finishOnline(online.seat);setTimeout(()=>{$('endP').textContent=`${online.them} ran out of time.`},replaying?10:600)}else if(replaying)finishOnline(1-online.seat);return}
+  if(d.k==='reset'){onlineNew(d.first);return}
+  if(d.k==='forfeit'){if(from!==online.seat){finishOnline(online.seat);setTimeout(()=>{$('endP').textContent=d.away?`${online.them} left the game.`:`${online.them} ran out of time.`},replaying?10:600)}else if(replaying)finishOnline(1-online.seat);return}
   if(d.k==='move'&&from!==undefined&&winner(S)<0){if(S.turn!==from)return;anim=null;commit({...d.m,_r:1});if(replay)anim=null}
  }finally{replaying=false}},
  onReplayDone(){anim=null;ui()}});
