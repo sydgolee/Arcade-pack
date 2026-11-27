@@ -150,19 +150,28 @@ if(AN&&AN.connect&&!AN.__arc){
   return oc.call(this,dest,...a);
  };
 }
-/* track every AudioContext a game makes, and wake them on any tap (iPhone starts them paused) */
-const ctxs=new Set();
-['AudioContext','webkitAudioContext'].forEach(k=>{const AC=window[k];if(!AC||AC.__arc)return;
- const W=function(...a){const c=new AC(...a);ctxs.add(c);return c};W.prototype=AC.prototype;W.__arc=1;try{Object.setPrototypeOf(W,AC)}catch(e){}window[k]=W});
+/* one shared sound engine for the whole page. iPhone only plays sound from an engine that was
+   unlocked inside a tap, so every game gets this same engine and the first tap unlocks it. */
+const ctxs=new Set();let shared=null;const RealAC=window.AudioContext||window.webkitAudioContext;
+function engine(){if(!shared&&RealAC){shared=new RealAC();ctxs.add(shared)}return shared}
+if(RealAC&&!RealAC.__arc){const W=function(){return engine()};W.prototype=RealAC.prototype;W.__arc=1;try{Object.setPrototypeOf(W,RealAC)}catch(e){}
+ window.AudioContext=W;if(window.webkitAudioContext)window.webkitAudioContext=W;
+ try{RealAC.prototype.close=function(){return Promise.resolve()}}catch(e){}}
 /* iPhone: play sound even when the ring/silent switch is on silent */
 try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
 let keepAlive=null;
-function silentLoop(){if(keepAlive||navigator.audioSession)return;try{
+function silentLoop(){if(keepAlive)return;try{
  const sr=8000,n=sr/2,b=new Uint8Array(44+n),v=new DataView(b.buffer),w=(o,s)=>[...s].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
  w(0,'RIFF');v.setUint32(4,36+n,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr,true);v.setUint16(32,1,true);v.setUint16(34,8,true);w(36,'data');v.setUint32(40,n,true);b.fill(128,44);
- keepAlive=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));keepAlive.loop=true;keepAlive.setAttribute('playsinline','');keepAlive.volume=0.01;keepAlive.play().catch(()=>{keepAlive=null})}catch(e){}}
-function wake(){if(!S.sound)return;silentLoop();for(const c of ctxs){try{if(c.state!=='running'&&c.state!=='closed'&&!document.hidden)c.resume()}catch(e){}}}
-['pointerdown','touchend','keydown','click'].forEach(t=>addEventListener(t,wake,{capture:true,passive:true}));
+ keepAlive=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));keepAlive.loop=true;keepAlive.setAttribute('playsinline','');keepAlive.play().catch(()=>{keepAlive=null})}catch(e){}}
+let unlocked=false;
+function wake(){if(!S.sound||document.hidden)return;silentLoop();const c=engine();if(!c)return;
+ try{if(c.state!=='running')c.resume()}catch(e){}
+ if(!unlocked){try{const b=c.createBuffer(1,1,22050),src=c.createBufferSource();src.buffer=b;src.connect(c.destination);src.start(0);unlocked=true}catch(e){}}}
+['touchend','pointerup','click','keydown','pointerdown'].forEach(t=>addEventListener(t,wake,{capture:true,passive:true}));
+function testSound(){wake();const c=engine();if(!c)return 'This browser has no web audio.';
+ const t=c.currentTime+.02;[523,659,784,1046].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.type='square';o.frequency.value=f;g.gain.setValueAtTime(.12,t+i*.11);g.gain.exponentialRampToValueAtTime(.0001,t+i*.11+.1);o.connect(g);g.connect(c.destination);o.start(t+i*.11);o.stop(t+i*.11+.11)});
+ return c.state}
 function applyVol(){const boost=['fleet','wallmaze','pool'].includes(GAME)?2.6:1.15,v=S.sound?Math.pow(S.vol/100,1.6)*boost:0;for(const g of masters.values())try{g.gain.value=v}catch(e){}}
 const wasRunning=new Set();
 document.addEventListener('visibilitychange',()=>{try{if(keepAlive){document.hidden?keepAlive.pause():S.sound&&keepAlive.play().catch(()=>{})}}catch(e){}for(const ctx of masters.keys()){try{if(document.hidden){if(ctx.state==='running'){wasRunning.add(ctx);ctx.suspend()}}else if(wasRunning.has(ctx)){wasRunning.delete(ctx);ctx.resume()}}catch(e){}}});
@@ -257,6 +266,7 @@ function settingsHTML(opts){opts=opts||{};const games=GAME?[GAME]:Object.keys(GA
  return `<h3 style="border:0;margin-top:0;padding-top:0">GAME</h3>
  <div class="arc-set"><label for="arc_vol">Volume<small id="arcVolV">${S.vol}%</small></label><input type="range" class="arc-range" id="arc_vol" min="0" max="100" step="5" value="${S.vol}"></div>
  ${sw('sound','Sound','All sound effects and music.')}
+ <div class="arc-row" style="margin-top:4px"><button class="arc-b arc-ghost" type="button" id="arcTest">♪ TEST SOUND</button></div><p id="arcTestR" style="font-size:16px;color:#9a8fb0;margin:4px 0 0"></p>
  ${sw('haptics','Vibration','Short buzz on taps and awards (Android).')}
  ${sw('fx','Screen shake and flashes','Turn off if motion bothers you.')}
  ${sw('fps','Show FPS','Frame counter in the corner.')}
@@ -274,6 +284,7 @@ function settingsHTML(opts){opts=opts||{};const games=GAME?[GAME]:Object.keys(GA
 function bindSettings(root){
  root.querySelectorAll('.arc-sw').forEach(i=>i.addEventListener('change',()=>set(i.dataset.k,i.checked)));
  root.querySelectorAll('.arc-seg button').forEach(b=>b.addEventListener('click',()=>{set(b.dataset.k,b.dataset.v);root.querySelectorAll(`.arc-seg button[data-k="${b.dataset.k}"]`).forEach(x=>x.setAttribute('aria-pressed',x===b))}));
+ const ts=root.querySelector('#arcTest');ts&&ts.addEventListener('click',()=>{if(!S.sound)set('sound',true),root.querySelector('#arc_sound')&&(root.querySelector('#arc_sound').checked=true);const st=testSound();setTimeout(()=>{root.querySelector('#arcTestR').textContent=(shared&&shared.state==='running')?'You should hear 4 beeps. No sound? Turn up the volume buttons and check the phone is not on Bluetooth headphones.':'Sound is blocked ('+st+'). Tap the button again.'},500)});
  const r=root.querySelector('#arc_vol');r&&r.addEventListener('input',()=>{set('vol',+r.value);root.querySelector('#arcVolV').textContent=r.value+'%'});
  const n=root.querySelector('#arcName');n&&n.addEventListener('change',()=>{n.value=setName(n.value)});n&&['keydown','keyup'].forEach(t=>n.addEventListener(t,e=>e.stopPropagation()));
  const fg=root.querySelector('#arcForget');fg&&fg.addEventListener('click',()=>{const ov=modal(`<h2>DELETE ONLINE SCORES?</h2><p>This removes every score this device sent to the world and country boards. Scores on this device stay.</p><div class="arc-row"><button class="arc-b arc-ghost" data-x>KEEP</button><button class="arc-b" id="arcFYes">DELETE</button></div>`);ov.querySelector('#arcFYes').onclick=()=>{fetch(REMOTE.url+'/player?player='+encodeURIComponent(playerId()),{method:'DELETE'}).then(r=>r.json()).then(j=>{close(ov);toast('ONLINE SCORES DELETED',(j.deleted||0)+' removed','#29adff')}).catch(()=>{close(ov);toast('NO CONNECTION','Try again when you are online.','#ff004d')})}});
@@ -290,5 +301,5 @@ function addGear(){document.querySelectorAll('a[href="index.html"]').forEach(a=>
 function ready(fn){document.readyState==='loading'?document.addEventListener('DOMContentLoaded',fn):fn()}
 ready(()=>{apply();if(GAME)addGear()});
 
-window.ARC={audioCtxs:()=>[...ctxs].map(c=>c.state),VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
+window.ARC={audioCtxs:()=>[...ctxs].map(c=>c.state),testSound,VERSION,GAMES,GAME,AWARDS,TIER,trophyPoints,history,record,remoteTop,REMOTE,playerId,settings:()=>Object.assign({},S),set,fx,buzz,toast,submit,board,name,setName,stats,awards:()=>LS.get('arc_awards',{}),unlock,openSettings,settingsHTML,bindSettings,modal,esc};
 })();
