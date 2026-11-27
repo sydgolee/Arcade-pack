@@ -1,0 +1,7 @@
+{
+  "name": "arcade-pack-server",
+  "private": true,
+  "devDependencies": {
+    "wrangler": "^4.50.0"
+  }
+}

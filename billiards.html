@@ -6,6 +6,7 @@
 <title>8-Ball</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <script src="arcade.js"></script>
+<script src="net.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
@@ -70,6 +71,7 @@ canvas{display:block;touch-action:none}
 
 <script>
 {
+let online=null,replaying=false,remoteShot=false,shotBy=0,pendingSync=null,lastWin=0,lastWhy='';
 const $=id=>document.getElementById(id);
 const TW=200,TH=400,RL=18,BR=5.2,POCK=[[0,0,11],[TW,0,11],[0,TH/2,9.5],[TW,TH/2,9.5],[0,TH,11],[TW,TH,11]];
 const COL=['#fff1e8','#ffec27','#29adff','#ff004d','#7e2553','#ffa300','#00e436','#ab5236','#000000'];
@@ -113,8 +115,9 @@ function legalTargets(pi){const g=groups[pi];if(!g)return balls.filter(b=>!b.in&
 function newGame(){clearTimeout(endT);clearInterval(anim);clearTimeout(cpuTimer);power=0;events=null;$('pwFill').style.height='0';rack();turn=breaker;groups=[null,null];state='aim';aim=-Math.PI/2;inHand=true;kitchen=true;firstShot=true;over=false;
  for(const o of document.querySelectorAll('.ov'))o.classList.remove('on');layout();say(pvp?`PLAYER ${turn+1} BREAKS. PLACE THE WHITE BEHIND THE LINE, THEN AIM`:turn?'CPU BREAKS':'YOUR BREAK. DRAG THE WHITE BEHIND THE LINE, THEN AIM');ui();maybeCpu()}
 function say(s,col){msgT=s;$('msg').textContent=s;$('msg').style.color=col||''}
-function isCpu(){return!pvp&&turn===1}
+function isCpu(){return online?turn!==online.seat:!pvp&&turn===1}
 function shoot(){if(state!=='aim'||over)return;if(power<.04){say('PULL THE POWER BAR DOWN, THEN LET GO');return}
+ if(online&&!remoteShot){if(isCpu())return;if(!NET.send({k:'shot',a:aim,p:power,b:snapBalls()}))return;shotBy=online.seat}
  const sp=power*15*(firstShot?1.22:1);cue().vx=Math.cos(aim)*sp;cue().vy=Math.sin(aim)*sp;events={first:-1,potted:[],rail:false,legal:legalTargets(turn).map(b=>b.n)};breakShot=firstShot;state='roll';inHand=false;power=0;$('pwFill').style.height='0';click(.15);ui()}
 function settle(){breakShot=false;const ev=events;events=null;const pi=turn,op=1-pi;let foul=null,cont=false;const g=groups[pi];
  const pot=ev.potted.filter(n=>n!==0&&n!==8),scratch=ev.potted.includes(0),eight=ev.potted.includes(8);
@@ -133,7 +136,7 @@ function settle(){breakShot=false;const ev=events;events=null;const pi=turn,op=1
  else{turn=op;say(isCpu()?'CPU TO SHOOT':pvp?`PLAYER ${turn+1} TO SHOOT`:'YOUR SHOT')}
  state='aim';ui();maybeCpu()}
 function respot8(){const e=balls.find(b=>b.n===8);e.in=false;e.vx=e.vy=0;e.x=TW/2;e.y=TH*.25;for(const b of balls)if(b!==e&&!b.in&&Math.hypot(b.x-e.x,b.y-e.y)<BR*2)e.y-=BR*2.2}
-function finish(w,why){over=true;state='over';breaker=pvp?1-w:(w===0?1:0);const rec=store.get('pool_rec')||{w:0,l:0};if(!pvp){w===0?rec.w++:rec.l++;store.set('pool_rec',rec)}if(window.ARC&&!pvp){const own=groups[0]?balls.filter(b=>b.in&&b.n&&b.n!==8&&groupOf(b.n)===groups[0]).length:0;ARC.submit('pool',w===0?[150,300,600][lvl]+balls.filter(b=>!b.in&&b.n!==0&&b.n!==8).length*40:own*20,['ROOKIE','HUSTLER','SHARK'][lvl]+' · '+(w===0?'win':'lost, '+own+' of 7 potted'),{win:w===0?1:0,lvl})}
+function finish(w,why){if(online)return finishOnline(w,why);over=true;state='over';breaker=pvp?1-w:(w===0?1:0);const rec=store.get('pool_rec')||{w:0,l:0};if(!pvp){w===0?rec.w++:rec.l++;store.set('pool_rec',rec)}if(window.ARC&&!pvp){const own=groups[0]?balls.filter(b=>b.in&&b.n&&b.n!==8&&groupOf(b.n)===groups[0]).length:0;ARC.submit('pool',w===0?[150,300,600][lvl]+balls.filter(b=>!b.in&&b.n!==0&&b.n!==8).length*40:own*20,['ROOKIE','HUSTLER','SHARK'][lvl]+' · '+(w===0?'win':'lost, '+own+' of 7 potted'),{win:w===0?1:0,lvl})}
  clearTimeout(endT);endT=setTimeout(()=>{$('endT').textContent=pvp?`PLAYER ${w+1} WINS`:w===0?'YOU WIN':'CPU WINS';$('endP').textContent=why+(pvp?'':` Record vs CPU: ${rec.w} win${rec.w===1?'':'s'}, ${rec.l} loss${rec.l===1?'':'es'}.`);
   (w===0||pvp?[523,659,784,1046]:[392,311,233]).forEach((f,i)=>setTimeout(()=>beep(f,.16),i*120));$('end').classList.add('on')},700)}
 
@@ -147,7 +150,7 @@ function bestShot(cx,cy){const c=cue();let best=null;
   if(lvl===2){const tx=-ay/ad,ty=ax/ad,s1=Math.sign(vx*tx+vy*ty)||1,cx2=tx*s1,cy2=ty*s1;for(const[qx,qy]of POCK){const rx=qx-gx,ry=qy-gy,along=rx*cx2+ry*cy2,perp=Math.abs(rx*cy2-ry*cx2);if(along>0&&along<220&&perp<14&&cut>.2)sc-=1.2}
    const rest=legalTargets(turn).filter(b=>b!==t);if(rest.length){const ex=gx+cx2*40*Math.sin(cut),ey=gy+cy2*40*Math.sin(cut);const nd=Math.min(...rest.map(b=>Math.hypot(b.x-ex,b.y-ey)));sc+=Math.max(0,.4-nd/300)}}if(!best||sc>best.sc)best={sc,a:Math.atan2(vy,vx),p:Math.min(1,.28+(vd+ad*1.6)/(520*Math.max(.35,Math.cos(cut))))}}
  return best}
-function maybeCpu(){if(!isCpu()||over)return;clearTimeout(cpuTimer);cpuTimer=setTimeout(cpuPlay,700)}
+function maybeCpu(){if(online||!isCpu()||over)return;clearTimeout(cpuTimer);cpuTimer=setTimeout(cpuPlay,700)}
 const ovOpen=()=>[...document.querySelectorAll('.ov')].some(o=>o.classList.contains('on'));
 function cpuPlay(){if(ovOpen()){cpuTimer=setTimeout(cpuPlay,400);return}if(!isCpu()||over||state!=='aim')return;const c=cue();
  if(inHand){let bp=null;for(let k=0;k<70;k++){const x=BR+Math.random()*(TW-2*BR),y=kitchen?TH*.75+Math.random()*(TH*.25-BR):BR+Math.random()*(TH-2*BR);
@@ -189,7 +192,7 @@ function draw(){g.setTransform(dpr*SC,0,0,dpr*SC,0,0);
  for(const b of balls)if(!b.in)drawBall(b);
  if(inHand&&!isCpu()&&state==='aim'){g.strokeStyle='#ffec27';g.setLineDash([2,2]);g.beginPath();g.arc(c.x,c.y,BR+3,0,7);g.stroke();g.setLineDash([])}}
 function ui(){for(const pi of[0,1]){$('pl'+pi).classList.toggle('on',turn===pi&&!over);const gr=groups[pi];
- $('nm'+pi).textContent=(pvp?'PLAYER '+(pi+1):pi?'CPU':'YOU')+(gr?' · '+gr.toUpperCase()+'S':'');
+ $('nm'+pi).textContent=(online?(pi===online.seat?'YOU':online.them):pvp?'PLAYER '+(pi+1):pi?'CPU':'YOU')+(gr?' · '+gr.toUpperCase()+'S':'');
  const ns=gr?balls.filter(b=>b.n&&b.n!==8&&groupOf(b.n)===gr&&!b.in).map(b=>b.n):[];$('bl'+pi).innerHTML=ns.map(n=>`<i style="background:${n>8?`linear-gradient(#fff1e8 30%,${colOf(n)} 30% 70%,#fff1e8 70%)`:colOf(n)}"></i>`).join('')+(gr&&!ns.length?'<i style="background:#000;border:1px solid #fff1e8"></i>':'')}
  const human=!isCpu()&&state==='aim'&&!over;$('fl').disabled=$('fr').disabled=!human}
 /* ---------- input ---------- */
@@ -217,9 +220,35 @@ $('resume').addEventListener('click',()=>{$('start').classList.remove('on');mayb
 $('toMenu').addEventListener('click',menu);$('menuBtn').addEventListener('click',menu);
 addEventListener('resize',layout);
 rack();layout();ui();menu();
-(function loop(){requestAnimationFrame(loop);if(state==='roll'&&!ovOpen()){simulate();if(!moving())settle();ui()}draw()})();
+(function loop(){requestAnimationFrame(loop);if(state==='roll'&&(online||!ovOpen())){simulate();if(!moving()){if(online&&shotBy!==online.seat){state='wait';if(pendingSync){const s=pendingSync;pendingSync=null;applySync(s)}}else{settle();if(online)sendSync()}}ui()}draw()})();
 addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
 window.__p={get balls(){return balls},get state(){return state},get turn(){return turn},get groups(){return groups},setAim:a=>aim=a,setPow:p=>power=p,shoot,bestShot,cue};
+
+/* ---------- online play ---------- */
+const snapBalls=()=>balls.map(x=>[x.x,x.y,x.in?1:0]);
+function setBalls(b){balls.forEach((x,i)=>{x.x=b[i][0];x.y=b[i][1];x.in=!!b[i][2];x.vx=x.vy=0})}
+function onlineSay(){if(over)return;const mine=turn===online.seat;
+ if(inHand&&!firstShot)say(mine?'FOUL. YOU HAVE BALL IN HAND':`FOUL. ${online.them} HAS BALL IN HAND`,mine?'#00e436':'#ff004d');
+ else if(firstShot)say(mine?'YOUR BREAK. DRAG THE WHITE BEHIND THE LINE, THEN AIM':`${online.them} BREAKS`);
+ else say(mine?'YOUR SHOT':`${online.them} TO SHOOT`,mine?'#ffec27':'')}
+function sendSync(){NET.send({k:'sync',s:{b:snapBalls(),turn,groups,inHand,kitchen,firstShot,over,win:lastWin,why:lastWhy}});onlineSay()}
+function applySync(s){clearInterval(anim);setBalls(s.b);events=null;breakShot=false;turn=s.turn;groups=s.groups;inHand=s.inHand;kitchen=s.kitchen;firstShot=s.firstShot;
+ if(s.over){finishOnline(s.win,s.why)}else{over=false;state='aim';onlineSay()}ui()}
+function applyShot(d){clearInterval(anim);setBalls(d.b);aim=d.a;power=d.p;state='aim';over=false;shotBy=1-online.seat;remoteShot=true;try{shoot()}finally{remoteShot=false}say(`${online.them} SHOOTS…`)}
+function finishOnline(w,why){over=true;state='over';lastWin=w;lastWhy=why;const won=w===online.seat;
+ if(!replaying&&window.ARC)ARC.submit('pool',0,`vs ${online.them} (online)`,{win:won?1:0,online:1});
+ clearTimeout(endT);endT=setTimeout(()=>{$('endT').textContent=won?'YOU WIN':online.them+' WINS';$('endP').textContent=why;$('again').textContent='REMATCH';$('end').classList.add('on')},replaying?0:700)}
+function onlineNew(br){breaker=br;pvp=true;newGame();lastWin=0;lastWhy='';pendingSync=null;onlineSay();ui()}
+$('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();const br=1-breaker;NET.send({k:'reset',br});onlineNew(br)},{capture:true});
+for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('again').textContent='PLAY AGAIN'}},{capture:true});
+if(window.NET)NET.init({game:'pool',
+ onStart(i){online=i;onlineNew(0)},
+ onMsg(from,d,replay){if(!online)return;replaying=replay;try{
+  if(d.k==='reset'){onlineNew(d.br||0);return}
+  if(d.k==='shot'&&from!==online.seat&&!replay){applyShot(d);return}
+  if(d.k==='sync'&&(from!==online.seat||replay)){if(!replay&&state==='roll'){pendingSync=d.s;return}applySync(d.s)}
+ }finally{replaying=false}},
+ onReplayDone(){ui()}});
 }
 </script>
 </body>

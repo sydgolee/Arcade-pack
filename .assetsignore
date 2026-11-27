@@ -1,7 +1,0 @@
-.git
-server
-wrangler.jsonc
-.assetsignore
-README.txt
-node_modules
-.wrangler

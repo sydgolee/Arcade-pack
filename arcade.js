@@ -3,7 +3,7 @@
    local leaderboards, awards, play stats, toasts. Everything stays on this device. */
 (function(){
 'use strict';
-const VERSION='1.1.0';
+const VERSION='1.2.0';
 const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const DEF={online:true,vol:80,sound:true,haptics:true,fx:true,fps:false,touch:'auto',ctl:'m',lefty:false};
 let S=Object.assign({},DEF,LS.get('arc_settings',{}));
@@ -43,6 +43,7 @@ const AWARDS=[
  ['p0','b','CHALK UP','Beat the Rookie at 8-Ball.'],
  ['c500','b','SADDLE UP','Ride 500m in High Noon Rider.'],
  ['g500','b','NEW IN TOWN','Run 500m in Tommy Gun Alley.'],
+ ['online1','b','FRIEND OR FOE','Win an online game against a friend.'],
  ['d10','s','DEEP DIVER','Reach room 10 in Dungeon of One Room.'],
  ['w1','s','WALL BUILDER','Beat the Normal CPU in Wall Maze.'],
  ['f1','s','CAPTAIN','Beat the Captain in Fleet Strike.'],
@@ -72,6 +73,7 @@ function checkAwards(game,x){
  if(x.win===1){h.w++;if(h.w>=3)unlock('streak3')}else if(x.win===0){h.w=0;h.l=(h.l||0)+1;if(h.l>=5)unlock('sport')}
  LS.set('arc_streak',h);
  if(game==='dungeon'){if(x.room>=5)unlock('d5');if(x.room>=10)unlock('d10');if(x.room>=25)unlock('d25')}
+ if(x.online&&x.win===1){unlock('online1');return}
  if(x.win===1){const k={wallmaze:'w',fleet:'f',pool:'p'}[game];if(k){unlock(k+'0');if(x.lvl>=1)unlock(k+'1');if(x.lvl>=2)unlock(k+'2')}}
  if(game==='fleet'&&x.win===1&&x.shots<=45)unlock('f45');
  if(game==='wallmaze'&&x.win===1&&x.walls===10)unlock('wall10');

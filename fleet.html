@@ -6,6 +6,7 @@
 <title>Fleet Strike</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <script src="arcade.js"></script>
+<script src="net.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
@@ -83,6 +84,7 @@ canvas{display:block;touch-action:none}
 
 <script>
 {
+let online=null,oppFleet=null,myFleetSent=false,replaying=false;
 const $=id=>document.getElementById(id),N=10,FLEET=[['CARRIER',5],['BATTLESHIP',4],['CRUISER',3],['SUBMARINE',3],['DESTROYER',2]];
 const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let ac=null;function beep(f,d=.08,type='square',v=.04,sl=0){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.type=type;o.frequency.setValueAtTime(f,t);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+sl),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
@@ -147,16 +149,16 @@ function setStatus(t,col){$('status').textContent=t;$('status').style.color=col|
 function fire(bd,i){const x=i%N,y=i/N|0,s=shipAt(bd.ships,x,y);if(!s){bd.shot[i]=1;return{hit:false}}
  bd.shot[i]=2;s.hits++;if(s.hits>=s.len){for(const[a,b]of cellsOf(s))bd.shot[a+b*N]=3;return{hit:true,sunk:s}}return{hit:true}}
 const allSunk=bd=>bd.ships.every(s=>s.hits>=s.len);
-function playerShot(i){if(phase!=='battle'||turn!=='me'||busy||cpu.shot[i])return;shots++;lastShot.me=i;const r=fire(cpu,i),c=BW/N;
+function playerShot(i){if(phase!=='battle'||turn!=='me'||busy||cpu.shot[i])return;if(online&&!replaying&&!NET.send({k:'shot',i}))return;shots++;lastShot.me=i;const r=fire(cpu,i),c=BW/N;
  if(r.hit){hitsN++;boom();burst(i,c,'#ffa300');setStatus(r.sunk?`YOU SANK THE ${r.sunk.n}!`:'HIT!','#ffa300')}else{splash();burst(i,c,'#c2c3c7',8);setStatus('MISS','#9a8fb0')}
  fleetList();stat();if(allSunk(cpu))return finish(true);
- turn='cpu';busy=true;$('bigLbl').textContent='ENEMY AIMING…';clearTimeout(cpuT);cpuT=setTimeout(cpuTurn,850)}
-function cpuTurn(){if(phase!=='battle'||turn!=='cpu')return;const i=aiPick(me,lvl);lastShot.cpu=i;const r=fire(me,i),col=String.fromCharCode(65+(i%N))+((i/N|0)+1);
+ turn='cpu';busy=true;$('bigLbl').textContent=online?online.them+' AIMING…':'ENEMY AIMING…';clearTimeout(cpuT);if(!online)cpuT=setTimeout(cpuTurn,850)}
+function cpuTurn(forced){if(phase!=='battle'||turn!=='cpu')return;const i=forced!=null?forced:aiPick(me,lvl);lastShot.cpu=i;const r=fire(me,i),col=String.fromCharCode(65+(i%N))+((i/N|0)+1);
  if(r.hit){boom();setStatus((r.sunk?`THEY SANK YOUR ${r.sunk.n}`:`ENEMY HIT ${col}`)+'. YOUR SHOT','#ff004d');if(navigator.vibrate)try{navigator.vibrate(60)}catch(e){}}else{splash();setStatus(`ENEMY MISSED ${col}. YOUR SHOT`,'')}
  if(allSunk(me))return finish(false);turn='me';busy=false;$('bigLbl').textContent='ENEMY WATERS'}
 function stat(){$('shots').textContent=shots?`${shots} shots · ${Math.round(hitsN/shots*100)}% hit`:''}
 const LV=['CADET','CAPTAIN','ADMIRAL'],pl=(n,w)=>n+' '+w+(n===1?'':'s');
-function finish(win){clearTimeout(cpuT);phase='end';busy=true;const all=store.get('bs_rec2')||{},rec=all[lvl]||{w:0,l:0,best:0};if(win){rec.w++;rec.best=rec.best?Math.min(rec.best,shots):shots}else rec.l++;all[lvl]=rec;store.set('bs_rec2',all);if(window.ARC)ARC.submit('fleet',win?[150,300,600][lvl]+Math.max(0,100-shots)*6:hitsN*8,LV[lvl]+' · '+(win?shots+' shots':'lost, '+hitsN+' hits'),{win:win?1:0,lvl,shots});store.set('bs_rec',Object.values(all).reduce((a,r)=>({w:a.w+r.w,l:a.l+r.l,best:r.best&&(!a.best||r.best<a.best)?r.best:a.best}),{w:0,l:0,best:0}));
+function finish(win){clearTimeout(cpuT);if(online)return finishOnline(win);phase='end';busy=true;const all=store.get('bs_rec2')||{},rec=all[lvl]||{w:0,l:0,best:0};if(win){rec.w++;rec.best=rec.best?Math.min(rec.best,shots):shots}else rec.l++;all[lvl]=rec;store.set('bs_rec2',all);if(window.ARC)ARC.submit('fleet',win?[150,300,600][lvl]+Math.max(0,100-shots)*6:hitsN*8,LV[lvl]+' · '+(win?shots+' shots':'lost, '+hitsN+' hits'),{win:win?1:0,lvl,shots});store.set('bs_rec',Object.values(all).reduce((a,r)=>({w:a.w+r.w,l:a.l+r.l,best:r.best&&(!a.best||r.best<a.best)?r.best:a.best}),{w:0,l:0,best:0}));
  for(const s of cpu.ships)s.reveal=1;
  setTimeout(()=>{$('endT').textContent=win?'VICTORY':'FLEET LOST';$('endP').textContent=(win?`You won in ${shots} shots (${Math.round(hitsN/shots*100)}% accuracy).`:`The enemy found all your ships. You sank ${cpu.ships.filter(s=>s.hits>=s.len).length} of theirs.`)+` vs ${LV[lvl]}: ${pl(rec.w,'win')}, ${pl(rec.l,'loss').replace('losss','losses')}${rec.best?`, best ${rec.best} shots`:''}.`;
   (win?[523,659,784,1046]:[392,311,233]).forEach((f,k)=>setTimeout(()=>beep(f,.18),k*120));$('end').classList.add('on')},900)}
@@ -187,7 +189,31 @@ $('resume').addEventListener('click',()=>$('start').classList.remove('on'));
 $('toMenu').addEventListener('click',menu);$('menuBtn').addEventListener('click',menu);
 addEventListener('resize',layout);
 me=newBoard(randomFleet());cpu=newBoard(randomFleet());layout();menu();
-let t=0;(function loop(){requestAnimationFrame(loop);t++;draw(t)})();
+let t=0;
+/* ---------- online play ---------- */
+const packShips=b=>b.ships.map(({n,len,h,x,y})=>({n,len,h,x,y}));
+function onlinePlace(){startPlace();oppFleet=null;myFleetSent=false;setStatus(`VS ${online.them}: PLACE YOUR FLEET`,'#29adff');$('go').textContent='READY ▶'}
+function maybeBattle(){if(!online||!myFleetSent||!oppFleet||phase!=='place')return;cpu=newBoard(oppFleet.map(s=>({...s,hits:0})));
+ phase='battle';sel=null;$('ctrl').style.display='none';fleetList();layout();if(!replaying)beep(660,.1);
+ if(online.seat===0){turn='me';busy=false;$('bigLbl').textContent='ENEMY WATERS';setStatus('YOU FIRE FIRST. TAP THE ENEMY GRID','#ffec27')}
+ else{turn='cpu';busy=true;$('bigLbl').textContent=online.them+' AIMING…';setStatus(online.them+' FIRES FIRST','#ff004d')}}
+function finishOnline(win){phase='end';busy=true;for(const s of cpu.ships)s.reveal=1;
+ if(!replaying&&window.ARC)ARC.submit('fleet',0,`vs ${online.them} (online) · ${shots} shots`,{win:win?1:0,online:1,shots});
+ setTimeout(()=>{$('endT').textContent=win?'VICTORY':'FLEET LOST';$('endP').textContent=win?`You beat ${online.them} in ${shots} shots.`:`${online.them} found all your ships. You sank ${cpu.ships.filter(s=>s.hits>=s.len).length} of theirs.`;
+  $('again').textContent='REMATCH';$('end').classList.add('on')},replaying?0:900)}
+$('go').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();if(myFleetSent)return;
+ if(!NET.send({k:'fleet',ships:packShips(me)}))return;myFleetSent=true;sel=null;$('ctrl').style.display='none';setStatus(oppFleet?'READY!':`WAITING FOR ${online.them} TO PLACE THEIR FLEET…`,'#29adff');maybeBattle()},{capture:true});
+$('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();NET.send({k:'reset'});onlinePlace()},{capture:true});
+for(const b of document.querySelectorAll('[data-lvl]'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('again').textContent='PLAY AGAIN'}},{capture:true});
+if(window.NET)NET.init({game:'fleet',
+ onStart(i){online=i;onlinePlace()},
+ onMsg(from,d,replay){if(!online)return;replaying=replay;try{
+  if(d.k==='reset'){onlinePlace();return}
+  if(d.k==='fleet'){if(from===online.seat){me=newBoard(d.ships.map(s=>({...s,hits:0})));myFleetSent=true;$('ctrl').style.display='none';setStatus(`WAITING FOR ${online.them} TO PLACE THEIR FLEET…`,'#29adff')}else{oppFleet=d.ships;if(!myFleetSent)setStatus(`${online.them} IS READY. PLACE YOUR FLEET`,'#29adff')}maybeBattle();return}
+  if(d.k==='shot'){if(from===online.seat)playerShot(d.i);else cpuTurn(d.i)}
+ }finally{replaying=false}},
+ onReplayDone(){layout()}});
+(function loop(){requestAnimationFrame(loop);t++;draw(t)})();
 addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
 window.__b={get me(){return me},get cpu(){return cpu},aiPick,fire,allSunk,randomFleet,newBoard,get phase(){return phase}};
 }
