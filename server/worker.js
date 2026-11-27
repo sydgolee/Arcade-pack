@@ -38,8 +38,8 @@ export default {
       if (url.pathname === '/top' && req.method === 'GET') return await top(url, env, country);
       if (url.pathname === '/score' && req.method === 'POST') return await score(req, env, country);
       if (url.pathname === '/player' && req.method === 'DELETE') return await forget(url, env);
-      if (url.pathname === '/' ) return json({ ok: true, service: '8-Bit Arcade Pack leaderboards' });
-      return json({ error: 'not found' }, 404);
+      if (url.pathname === '/api/health') return json({ ok: true, service: '8-Bit Arcade Pack leaderboards' });
+      return env.ASSETS ? env.ASSETS.fetch(req) : json({ error: 'not found' }, 404);
     } catch (e) {
       if (String(e).includes('no such table')) { await ensure(env); return json({ error: 'retry' }, 503); }
       return json({ error: 'server' }, 500);
