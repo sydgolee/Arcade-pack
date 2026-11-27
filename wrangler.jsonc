@@ -7,6 +7,6 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "arcade-scores", "database_id": "00f00ff3-0ac3-4192-98f1-a3f343bb285f" }
   ],
-  "durable_objects": { "bindings": [ { "name": "ROOMS", "class_name": "Room" } ] },
-  "migrations": [ { "tag": "v1", "new_sqlite_classes": ["Room"] } ]
+  "durable_objects": { "bindings": [ { "name": "ROOMS", "class_name": "Room" }, { "name": "LOBBY", "class_name": "Lobby" } ] },
+  "migrations": [ { "tag": "v1", "new_sqlite_classes": ["Room"] }, { "tag": "v2", "new_sqlite_classes": ["Lobby"] } ]
 }

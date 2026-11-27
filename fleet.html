@@ -7,6 +7,7 @@
 <link href="fonts/fonts.css" rel="stylesheet">
 <script src="arcade.js"></script>
 <script src="net.js"></script>
+<script src="cup.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
@@ -205,10 +206,14 @@ $('go').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagatio
  if(!NET.send({k:'fleet',ships:packShips(me)}))return;myFleetSent=true;sel=null;$('ctrl').style.display='none';setStatus(oppFleet?'READY!':`WAITING FOR ${online.them} TO PLACE THEIR FLEET…`,'#29adff');maybeBattle()},{capture:true});
 $('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();NET.send({k:'reset'});onlinePlace()},{capture:true});
 for(const b of document.querySelectorAll('[data-lvl]'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('again').textContent='PLAY AGAIN'}},{capture:true});
+function forfeitMe(){if(!online||phase==='end')return;NET.send({k:'forfeit'});finishOnline(false);setTimeout(()=>{$('endP').textContent='You ran out of time.'},950)}
 if(window.NET)NET.init({game:'fleet',
+ myTurn(){return !online?0:phase==='place'&&!myFleetSent?90:phase==='battle'&&turn==='me'&&!busy?30:0},
+ onTimeout(){if(phase==='place'&&!myFleetSent){$('go').click();return}forfeitMe()},
  onStart(i){online=i;onlinePlace()},
  onMsg(from,d,replay){if(!online)return;replaying=replay;try{
   if(d.k==='reset'){onlinePlace();return}
+  if(d.k==='forfeit'){if(phase!=='end'){const mine=from===online.seat;finishOnline(!mine);setTimeout(()=>{$('endP').textContent=mine?'You ran out of time.':`${online.them} ran out of time.`},replaying?10:950)}return}
   if(d.k==='fleet'){if(from===online.seat){me=newBoard(d.ships.map(s=>({...s,hits:0})));myFleetSent=true;$('ctrl').style.display='none';setStatus(`WAITING FOR ${online.them} TO PLACE THEIR FLEET…`,'#29adff')}else{oppFleet=d.ships;if(!myFleetSent)setStatus(`${online.them} IS READY. PLACE YOUR FLEET`,'#29adff')}maybeBattle();return}
   if(d.k==='shot'){if(from===online.seat)playerShot(d.i);else cpuTurn(d.i)}
  }finally{replaying=false}},
@@ -217,6 +222,8 @@ if(window.NET)NET.init({game:'fleet',
 addEventListener('packsync',()=>{if($('start').classList.contains('on'))menu()});
 window.__b={get me(){return me},get cpu(){return cpu},aiPick,fire,allSunk,randomFleet,newBoard,get phase(){return phase}};
 }
+
+if(window.CUP)CUP.init({game:'fleet'});
 </script>
 </body>
 </html>

@@ -1,3 +1,4 @@
+export { Lobby } from './lobby.js';
 // 8-Bit Arcade Pack online leaderboards. Cloudflare Worker + D1 (binding: DB).
 // Stores: game, mode, player name, random player id, score, short detail, country code, time.
 // Never stores IP addresses. Country comes from Cloudflare's request.cf.country.
@@ -40,6 +41,9 @@ export default {
       if (url.pathname === '/player' && req.method === 'DELETE') return await forget(url, env);
       if (url.pathname === '/api/health') return json({ ok: true, service: '8-Bit Arcade Pack' });
       if (url.pathname === '/api/room/new' && req.method === 'POST') return newRoom();
+      const lb = url.pathname.match(/^\/api\/lobby\/(fleet|wallmaze|pool)$/);
+      if (lb) return env.LOBBY.get(env.LOBBY.idFromName('lobby-' + lb[1])).fetch(req);
+      if (url.pathname === '/api/champions' && req.method === 'GET') return champions(url, env);
       const m = url.pathname.match(/^\/api\/room\/([A-Z0-9]{5})$/);
       if (m) return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);
       return site(req, url);
@@ -184,4 +188,11 @@ export class Room {
   }
   async webSocketError(ws) { return this.webSocketClose(ws); }
   async alarm() { await this.ctx.storage.deleteAll(); }
+}
+
+async function champions(url, env) {
+  const game = url.searchParams.get('game');
+  if (!['fleet', 'wallmaze', 'pool'].includes(game)) return json({ error: 'bad request' }, 400);
+  const { results } = await env.DB.prepare('SELECT name, country, size, created_at FROM champions WHERE game = ?1 ORDER BY created_at DESC LIMIT 30').bind(game).all();
+  return json({ rows: results.map(r => ({ n: r.name, c: r.country, size: r.size, t: r.created_at })) }, 200, { 'cache-control': 'public, max-age=20' });
 }

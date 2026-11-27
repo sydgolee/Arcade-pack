@@ -3,7 +3,7 @@
    local leaderboards, awards, play stats, toasts. Everything stays on this device. */
 (function(){
 'use strict';
-const VERSION='1.2.0';
+const VERSION='1.3.0';
 const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const DEF={online:true,vol:80,sound:true,haptics:true,fx:true,fps:false,touch:'auto',ctl:'m',lefty:false};
 let S=Object.assign({},DEF,LS.get('arc_settings',{}));
@@ -44,6 +44,14 @@ const AWARDS=[
  ['c500','b','SADDLE UP','Ride 500m in High Noon Rider.'],
  ['g500','b','NEW IN TOWN','Run 500m in Tommy Gun Alley.'],
  ['online1','b','FRIEND OR FOE','Win an online game against a friend.'],
+ ['quick1','b','QUICK DRAW','Play a Quick Match against another player.'],
+ ['cup1','b','CONTENDER','Play in a tournament.'],
+ ['cupqf','s','LAST EIGHT','Reach a tournament quarter-final, semi or final.'],
+ ['giant','s','GIANT KILLER','Knock a real player out of a tournament.'],
+ ['cupfinal','s','FINALIST','Reach a tournament final.'],
+ ['cupwin8','g','CUP WINNER','Win an 8-player tournament.'],
+ ['cupwin32','p','GRAND CHAMPION','Win a 32-player tournament.'],
+ ['triple','p','TRIPLE CROWN','Win a tournament in Fleet Strike, Wall Maze and 8-Ball.'],
  ['d10','s','DEEP DIVER','Reach room 10 in Dungeon of One Room.'],
  ['w1','s','WALL BUILDER','Beat the Normal CPU in Wall Maze.'],
  ['f1','s','CAPTAIN','Beat the Captain in Fleet Strike.'],

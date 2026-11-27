@@ -6,7 +6,7 @@
 'use strict';
 const API=(window.ARC&&ARC.REMOTE&&ARC.REMOTE.url)||'https://arcade-pack.s-golee.workers.dev';
 const WS=API.replace(/^http/,'ws');
-let cfg=null,ws=null,info=null,retry=0,want=false,pingT=0,lobby=null,banner=null;
+let cfg=null,ws=null,info=null,retry=0,want=false,pingT=0,lobby=null,banner=null,opts={},clockT=0,turnStart=0,lastBeep=0;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const myName=()=>(window.ARC&&ARC.name())||'PLAYER';
 
@@ -60,11 +60,11 @@ function waiting(code){
 const GAME_T=()=>(window.ARC&&ARC.GAMES[cfg.game]?ARC.GAMES[cfg.game].t:'a game');
 
 /* ---------- connection ---------- */
-function join(code,fromLink){
- want=true;info={code,seat:null,names:{},online:[],started:false};
- if(window.ARC&&!ARC.name()){askName(()=>join(code,fromLink));return}
+function join(code,fromLink,o){
+ opts=o||{};want=true;info={code,seat:null,names:{},online:[],started:false};
+ if(window.ARC&&!ARC.name()){askName(()=>join(code,fromLink,o));return}
  if(lobby&&lobby.isConnected){const box=lobby.querySelector('.arc-box');box.innerHTML='<h2>CONNECTING…</h2><p>Joining game '+code+'.</p>'}
- else if(fromLink){lobby=ARC.modal('<h2>CONNECTING…</h2><p>Joining your friend\'s game '+code+'.</p>')}
+ else if(fromLink){lobby=ARC.modal(opts.auto?`<h2>CONNECTING…</h2><p>Getting your match against ${esc(opts.opp||'your opponent')} ready.</p>`:'<h2>CONNECTING…</h2><p>Joining your friend\'s game '+code+'.</p>')}
  connect();
 }
 function connect(){
@@ -84,7 +84,7 @@ function handle(m){
  if(m.t==='hello'){info.seat=m.seat;info.names=m.names||{};info.online=m.online||[];
   history.replaceState(null,'',location.pathname+'?room='+info.code);
   const both=info.online.includes(0)&&info.online.includes(1);
-  if(!both&&!info.started&&!(m.log&&m.log.length)){waiting(info.code)}
+  if(!both&&!info.started&&!(m.log&&m.log.length)){if(opts.auto){if(!lobby||!lobby.isConnected)lobby=ARC.modal('');lobby.querySelector('.arc-box').innerHTML=`<h2>GET READY</h2><p style="text-align:center">Waiting for ${esc(opts.opp||'your opponent')} to connect…</p>`}else waiting(info.code)}
   else begin(m.log||[]);
   status();return}
  if(m.t==='peer'){info.names[m.seat]=m.name;info.online=m.online||info.online;if(!info.started)begin([]);else ARC.toast('FRIEND IS BACK',m.name,'#00e436');status();return}
@@ -93,7 +93,7 @@ function handle(m){
 }
 function begin(log){
  if(lobby&&lobby.isConnected){lobby.remove();lobby=null}
- info.started=true;
+ info.started=true;clock();
  cfg.onStart&&cfg.onStart({seat:info.seat,me:myName(),them:them(),code:info.code});
  for(const x of log)cfg.onMsg&&cfg.onMsg(x.from,x.d,true);
  if(cfg.onReplayDone)cfg.onReplayDone();
@@ -101,9 +101,20 @@ function begin(log){
 }
 const them=()=>info?(info.names[1-info.seat]||'FRIEND'):'FRIEND';
 function send(d){if(ws&&ws.readyState===1){ws.send(JSON.stringify(d));return true}ARC.toast('NOT CONNECTED','Your move will not reach your friend. Reconnecting…','#ff004d');return false}
-function leave(){want=false;info=null;try{ws&&ws.close()}catch(e){}ws=null;status();history.replaceState(null,'',location.pathname)}
+function leave(){want=false;info=null;clearInterval(clockT);turnStart=0;try{ws&&ws.close()}catch(e){}ws=null;status();history.replaceState(null,'',location.pathname)}
 
 /* ---------- connection banner ---------- */
+function clock(){
+ clearInterval(clockT);clockT=setInterval(()=>{
+  if(!info||!info.started||!cfg||!cfg.myTurn){turnStart=0;return}
+  const live=ws&&ws.readyState===1,friend=info.online.includes(1-info.seat),lim=cfg.myTurn();
+  if(!lim||!live||!friend){if(turnStart){turnStart=0;status()}return}
+  if(!turnStart)turnStart=Date.now();
+  const left=Math.ceil(lim-(Date.now()-turnStart)/1000);
+  if(banner){banner.textContent=`YOUR MOVE · ${Math.max(0,left)}s`;banner.style.background=left<=10?'#7e2553':'#1d2b53'}
+  if(left<=10&&left>0&&left!==lastBeep){lastBeep=left;try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain(),t=a.currentTime;o.type='square';o.frequency.value=left<=3?880:660;g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.06);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.07)}catch(e){}}
+  if(left<=0){turnStart=0;cfg.onTimeout&&cfg.onTimeout()}
+ },250)}
 function status(){
  const on=!!(info&&info.started);
  if(!on){banner&&banner.remove();banner=null;cfg&&cfg.onStatus&&cfg.onStatus(null);return}
@@ -114,5 +125,5 @@ function status(){
  cfg&&cfg.onStatus&&cfg.onStatus({live,friend,seat:info.seat,them:them()});
 }
 
-window.NET={init,send,leave,get active(){return !!(info&&info.started)},get seat(){return info?info.seat:null},get them(){return them()},openLobby};
+window.NET={init,send,leave,join,resetClock:()=>{turnStart=0},get active(){return !!(info&&info.started)},get seat(){return info?info.seat:null},get them(){return them()},openLobby};
 })();

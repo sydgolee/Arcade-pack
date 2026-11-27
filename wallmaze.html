@@ -7,6 +7,7 @@
 <link href="fonts/fonts.css" rel="stylesheet">
 <script src="arcade.js"></script>
 <script src="net.js"></script>
+<script src="cup.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
@@ -237,14 +238,19 @@ function finishOnline(w){if(!replaying&&window.ARC)ARC.submit('wallmaze',0,`vs $
 $('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();NET.send({k:'reset'});onlineNew()},{capture:true});
 for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('undo').style.display='';$('again').textContent='PLAY AGAIN'}},{capture:true});
 if(window.NET)NET.init({game:'wallmaze',
+ myTurn(){return online&&S&&S.turn===online.seat&&winner(S)<0&&!$('end').classList.contains('on')?30:0},
+ onTimeout(){if(!online)return;NET.send({k:'forfeit'});finishOnline(1-online.seat);setTimeout(()=>{$('endP').textContent='You ran out of time.'},600)},
  onStart(i){online=i;onlineNew()},
  onMsg(from,d,replay){if(!online)return;replaying=replay;try{
   if(d.k==='reset'){onlineNew();return}
+  if(d.k==='forfeit'){if(from!==online.seat){finishOnline(online.seat);setTimeout(()=>{$('endP').textContent=`${online.them} ran out of time.`},replaying?10:600)}else if(replaying)finishOnline(1-online.seat);return}
   if(d.k==='move'&&from!==undefined&&winner(S)<0){if(S.turn!==from)return;anim=null;commit({...d.m,_r:1});if(replay)anim=null}
  }finally{replaying=false}},
  onReplayDone(){anim=null;ui()}});
 }
 
+
+if(window.CUP)CUP.init({game:'wallmaze'});
 </script>
 </body>
 </html>

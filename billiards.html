@@ -7,6 +7,7 @@
 <link href="fonts/fonts.css" rel="stylesheet">
 <script src="arcade.js"></script>
 <script src="net.js"></script>
+<script src="cup.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0b0a12">
 <link rel="icon" href="icons/icon-192.png">
@@ -242,14 +243,19 @@ function onlineNew(br){breaker=br;pvp=true;newGame();lastWin=0;lastWhy='';pendin
 $('again').addEventListener('click',e=>{if(!online)return;e.stopImmediatePropagation();const br=1-breaker;NET.send({k:'reset',br});onlineNew(br)},{capture:true});
 for(const b of document.querySelectorAll('[data-lvl],#pvp'))b.addEventListener('click',()=>{if(online){NET.leave();online=null;$('again').textContent='PLAY AGAIN'}},{capture:true});
 if(window.NET)NET.init({game:'pool',
+ myTurn(){return online&&turn===online.seat&&state==='aim'&&!over?45:0},
+ onTimeout(){if(!online||over)return;NET.send({k:'forfeit'});finishOnline(1-online.seat,'You ran out of time.')},
  onStart(i){online=i;onlineNew(0)},
  onMsg(from,d,replay){if(!online)return;replaying=replay;try{
   if(d.k==='reset'){onlineNew(d.br||0);return}
+  if(d.k==='forfeit'){if(!over){const mine=from===online.seat;finishOnline(mine?1-online.seat:online.seat,mine?'You ran out of time.':`${online.them} ran out of time.`)}return}
   if(d.k==='shot'&&from!==online.seat&&!replay){applyShot(d);return}
   if(d.k==='sync'&&(from!==online.seat||replay)){if(!replay&&state==='roll'){pendingSync=d.s;return}applySync(d.s)}
  }finally{replaying=false}},
  onReplayDone(){ui()}});
 }
+
+if(window.CUP)CUP.init({game:'pool'});
 </script>
 </body>
 </html>
